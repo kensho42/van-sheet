@@ -1,0 +1,115 @@
+:root {
+  color-scheme: light;
+  font-family: "Instrument Sans", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top left, #d4f3f6 0%, transparent 55%),
+    radial-gradient(circle at top right, #ffe6d1 0%, transparent 45%),
+    linear-gradient(160deg, #f4f7fb 0%, #f8fbff 40%, #eff4fb 100%);
+  color: #172431;
+}
+
+.demo {
+  width: min(1000px, 100% - 2rem);
+  margin: 2.5rem auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.demo h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 2.7vw, 2.2rem);
+}
+
+.demo p {
+  margin: 0;
+  color: #516173;
+}
+
+.demo-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.demo-card {
+  background: #ffffffcc;
+  border: 1px solid #d8e6f5;
+  border-radius: 20px;
+  backdrop-filter: blur(5px);
+  padding: 1rem;
+  box-shadow: 0 14px 35px -22px #5d7da04d;
+}
+
+.demo-card h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.demo-card button {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #1770d3 0%, #1d90e2 100%);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.demo-card button.secondary {
+  background: linear-gradient(135deg, #3d4252 0%, #596078 100%);
+}
+
+.demo-sheet-content {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  min-height: 100%;
+  padding-right: 0.5rem;
+}
+
+.demo-sheet-content .row {
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: #f2f8ff;
+  border: 1px solid #ddeaf7;
+}
+
+.demo-sheet-content .row strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.demo-sheet-content .row input {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #cad9ea;
+  font: inherit;
+  font-size: 16px;
+}
+
+.vsheet-root[data-demo-mode="desktop"] .vsheet-panel {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: min(430px, 100vw);
+  border-radius: 20px 0 0 20px;
+  transform: translateX(100%);
+}
+
+.vsheet-root[data-demo-mode="desktop"][data-state="open"] .vsheet-panel {
+  transform: translateX(0);
+}
