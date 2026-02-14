@@ -10,22 +10,8 @@ const { button, div, h1, h2, input, p, strong } = van.tags;
 const EXIT_ANIMATION_FALLBACK_MS = 550;
 const ADJUSTABLE_OPEN_DELAY_MS = 20;
 
-type ActiveSheet = {
-  isOpen: ReturnType<typeof van.state<boolean>>;
-  sheet: ReturnType<typeof createSheet>;
-};
-
 type DemoLayout = "default" | "keyboard-probe" | "adjustable-height";
-
-let activeSheet: ActiveSheet | null = null;
 const latestOptionResult = van.state("No option submitted yet.");
-
-const destroySheet = (entry: ActiveSheet) => {
-  entry.sheet.destroy();
-  if (activeSheet === entry) {
-    activeSheet = null;
-  }
-};
 
 const demoSections = (mode: "mobile" | "desktop"): SheetSection[] => [
   {
@@ -199,8 +185,10 @@ const adjustableHeightSections = (): SheetSection[] => {
   ];
 };
 
-const destroySheetAfterCloseAnimation = (entry: ActiveSheet) => {
-  const panel = entry.sheet.element.querySelector(".vsheet-panel");
+const destroySheetAfterCloseAnimation = (
+  sheet: ReturnType<typeof createSheet>,
+) => {
+  const panel = sheet.element.querySelector(".vsheet-panel");
   let settled = false;
 
   const settle = () => {
@@ -209,25 +197,11 @@ const destroySheetAfterCloseAnimation = (entry: ActiveSheet) => {
     }
 
     settled = true;
-    destroySheet(entry);
+    sheet.destroy();
   };
 
   panel?.addEventListener("transitionend", settle, { once: true });
   window.setTimeout(settle, EXIT_ANIMATION_FALLBACK_MS);
-};
-
-const closeActiveSheet = (immediate = false) => {
-  if (!activeSheet) {
-    return;
-  }
-
-  const entry = activeSheet;
-  if (immediate) {
-    destroySheet(entry);
-    return;
-  }
-
-  entry.isOpen.val = false;
 };
 
 const resolveDemoSections = (
@@ -249,8 +223,6 @@ const openDemoSheet = (
   mode: "mobile" | "desktop",
   layout: DemoLayout = "default",
 ) => {
-  closeActiveSheet(true);
-
   const isOpen = van.state(false);
   const sheet = createSheet({
     isOpen,
@@ -258,36 +230,114 @@ const openDemoSheet = (
     adjustableHeight: layout === "adjustable-height",
     onOpenChange: (open) => {
       if (!open) {
-        const entry = activeSheet;
-        if (entry && entry.sheet === sheet) {
-          destroySheetAfterCloseAnimation(entry);
-        } else {
-          sheet.destroy();
-        }
+        destroySheetAfterCloseAnimation(sheet);
       }
     },
   });
 
   sheet.element.dataset.demoMode = mode;
-  const entry: ActiveSheet = { isOpen, sheet };
-  activeSheet = entry;
 
   const openDelay =
     layout === "adjustable-height" ? ADJUSTABLE_OPEN_DELAY_MS : 0;
   window.setTimeout(() => {
-    if (activeSheet === entry) {
-      entry.isOpen.val = true;
+    if (sheet.element.isConnected) {
+      isOpen.val = true;
     }
   }, openDelay);
 };
 
 const openOptionSelectorDemo = async () => {
-  closeActiveSheet(true);
   const result = await openOptionSheet();
   latestOptionResult.val =
     result === null
       ? "Dismissed without a submitted value."
       : `Submitted value: ${result.toUpperCase()}`;
+};
+
+const stackBuilderSections = (
+  level: number,
+  openAnotherSheet: () => void,
+  closeSheet: () => void,
+): SheetSection[] => [
+  {
+    className: "demo-sheet-top",
+    content: div(
+      strong(`Stack Builder Sheet ${level}`),
+      p("Each layer has its own button to open another sheet above it."),
+    ),
+  },
+  {
+    className: "demo-sheet-content",
+    scroll: true,
+    content: div(
+      { class: "demo-sheet-scroll" },
+      div(
+        { class: "row" },
+        strong(`Sheet #${level}`),
+        p("Tap the footer action below to stack one more sheet."),
+      ),
+      ...Array.from({ length: 4 }, (_, index) =>
+        div(
+          { class: "row" },
+          strong(`Context Row ${index + 1}`),
+          p("Keeps enough content so stacked depth and scrolling are visible."),
+        ),
+      ),
+    ),
+  },
+  {
+    className: "demo-sheet-footer",
+    content: div(
+      { class: "demo-sheet-actions" },
+      button(
+        {
+          type: "button",
+          class: "secondary",
+          onclick: closeSheet,
+        },
+        "Close This Sheet",
+      ),
+      button(
+        {
+          type: "button",
+          class: "accent",
+          onclick: openAnotherSheet,
+        },
+        "Add Another Sheet",
+      ),
+    ),
+  },
+];
+
+const openStackBuilderDemo = (
+  mode: "mobile" | "desktop" = "mobile",
+  level = 1,
+) => {
+  const isOpen = van.state(false);
+  const openAnotherSheet = () => {
+    openStackBuilderDemo(mode, level + 1);
+  };
+  const closeSheet = () => {
+    isOpen.val = false;
+  };
+
+  const sheet = createSheet({
+    isOpen,
+    sections: stackBuilderSections(level, openAnotherSheet, closeSheet),
+    onOpenChange: (open) => {
+      if (!open) {
+        destroySheetAfterCloseAnimation(sheet);
+      }
+    },
+  });
+
+  sheet.element.dataset.demoMode = mode;
+
+  window.setTimeout(() => {
+    if (sheet.element.isConnected) {
+      isOpen.val = true;
+    }
+  }, 0);
 };
 
 const app = div(
@@ -299,7 +349,9 @@ const app = div(
     div(
       { class: "demo-card" },
       h2("Mobile Demo"),
-      p("Opens as a bottom sheet. Useful for touch-first mobile flow checks."),
+      p(
+        "Opens as a bottom sheet. Tap multiple times to see stacked sheet layering.",
+      ),
       button(
         { type: "button", onclick: () => openDemoSheet("mobile") },
         "Open Mobile Sheet",
@@ -308,7 +360,7 @@ const app = div(
     div(
       { class: "demo-card" },
       h2("Desktop Demo"),
-      p("Opens as a right-side drawer. Good for desktop layout verification."),
+      p("Opens as a right-side drawer. Repeated opens also stack layers."),
       button(
         {
           type: "button",
@@ -362,6 +414,19 @@ const app = div(
           onclick: () => openDemoSheet("mobile", "adjustable-height"),
         },
         "Open Adjustable Height Demo",
+      ),
+    ),
+    div(
+      { class: "demo-card" },
+      h2("Stack Builder Demo"),
+      p("Every opened sheet has an Add button that opens another sheet."),
+      button(
+        {
+          type: "button",
+          class: "accent",
+          onclick: () => openStackBuilderDemo("mobile"),
+        },
+        "Open Stack Builder",
       ),
     ),
   ),

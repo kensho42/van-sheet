@@ -6,6 +6,7 @@
 
 - Controlled open/close via `van.state`.
 - Dismissal pathways for backdrop, `Escape`, close button, and touch drag.
+- Multiple simultaneously open sheets with layered iOS-style depth.
 - Simple `content` mode or structured `sections` mode with one scrollable region.
 - Mobile keyboard-aware viewport handling.
 - Optional content-fit mobile height (`adjustableHeight`) capped to 95% viewport.
@@ -226,6 +227,9 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 `van-sheet` supports the following CSS variables:
 
 - `--vsheet-z-index`
+- `--vsheet-stack-layer`
+- `--vsheet-stack-offset-y`
+- `--vsheet-stack-scale`
 - `--vsheet-bg`
 - `--vsheet-close-bg`
 - `--vsheet-mobile-height`
@@ -250,6 +254,8 @@ Example:
 - Backdrop and close button are semantic `button` elements with labels.
 - Keyboard dismissal is available via `Escape` and can be disabled with `closeOnEscape: false`.
 - Touch drag-to-close is active on mobile viewport conditions and closes when downward drag passes the threshold.
+- When multiple sheets are open, only the topmost sheet is interactive (`Escape`, backdrop click, and drag close).
+- While dragging the top sheet, background stack layers animate in sync to preview the next layer.
 
 ## Development
 

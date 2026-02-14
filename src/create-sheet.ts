@@ -14,6 +14,123 @@ const DRAG_CLOSE_THRESHOLD_PX = 150;
 const MOBILE_SHEET_HEIGHT_RATIO = 0.95;
 const KEYBOARD_CLOSED_EPSILON_PX = 1;
 const PANEL_TRANSITION_FALLBACK_MS = 550;
+const STACK_OFFSET_STEP_PX = 12;
+const STACK_SCALE_STEP = 0.04;
+const STACK_MIN_SCALE = 0.72;
+
+type SheetStackSnapshot = {
+  depthFromTop: number;
+  isTop: boolean;
+  layer: number;
+  openCount: number;
+  visualDepth: number;
+  stackDragging: boolean;
+};
+
+type SheetStackParticipant = {
+  id: number;
+  isOpen: () => boolean;
+  getOpenOrder: () => number;
+  applyStackSnapshot: (snapshot: SheetStackSnapshot | null) => void;
+};
+
+const sheetStackParticipants = new Map<number, SheetStackParticipant>();
+let nextSheetStackParticipantId = 1;
+let nextSheetStackOpenOrder = 1;
+let activeStackDragParticipantId: number | null = null;
+let activeStackDragProgress = 0;
+
+const setSheetStackDragProgress = (participantId: number, progress: number) => {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  if (
+    activeStackDragParticipantId === participantId &&
+    activeStackDragProgress === clampedProgress
+  ) {
+    return;
+  }
+
+  activeStackDragParticipantId = participantId;
+  activeStackDragProgress = clampedProgress;
+  syncSheetStackState();
+};
+
+const clearSheetStackDragProgress = (participantId?: number) => {
+  if (
+    participantId !== undefined &&
+    activeStackDragParticipantId !== participantId
+  ) {
+    return;
+  }
+
+  if (activeStackDragParticipantId === null && activeStackDragProgress === 0) {
+    return;
+  }
+
+  activeStackDragParticipantId = null;
+  activeStackDragProgress = 0;
+  syncSheetStackState();
+};
+
+const getOpenSheetStackParticipants = (): SheetStackParticipant[] =>
+  Array.from(sheetStackParticipants.values())
+    .filter((participant) => participant.isOpen())
+    .sort(
+      (leftParticipant, rightParticipant) =>
+        leftParticipant.getOpenOrder() - rightParticipant.getOpenOrder(),
+    );
+
+const getTopOpenSheetStackParticipant = (): SheetStackParticipant | null => {
+  const openParticipants = getOpenSheetStackParticipants();
+  if (openParticipants.length === 0) {
+    return null;
+  }
+
+  return openParticipants[openParticipants.length - 1];
+};
+
+const isTopOpenSheetStackParticipant = (participantId: number): boolean =>
+  getTopOpenSheetStackParticipant()?.id === participantId;
+
+const syncSheetStackState = () => {
+  const openParticipants = getOpenSheetStackParticipants();
+  const openCount = openParticipants.length;
+  const topParticipant = openParticipants[openCount - 1];
+  const stackDragProgress =
+    topParticipant && activeStackDragParticipantId === topParticipant.id
+      ? activeStackDragProgress
+      : 0;
+
+  if (stackDragProgress === 0) {
+    activeStackDragParticipantId = null;
+    activeStackDragProgress = 0;
+  }
+
+  const stackDragging = stackDragProgress > 0;
+  const openParticipantIds = new Set(
+    openParticipants.map((participant) => participant.id),
+  );
+
+  for (const [index, participant] of openParticipants.entries()) {
+    const depthFromTop = openCount - index - 1;
+    const visualDepth = Math.max(0, depthFromTop - stackDragProgress);
+    participant.applyStackSnapshot({
+      depthFromTop,
+      isTop: depthFromTop === 0,
+      layer: index,
+      openCount,
+      visualDepth,
+      stackDragging,
+    });
+  }
+
+  for (const participant of sheetStackParticipants.values()) {
+    if (openParticipantIds.has(participant.id)) {
+      continue;
+    }
+
+    participant.applyStackSnapshot(null);
+  }
+};
 
 const resolveMountTarget = (mountTo?: HTMLElement | string): HTMLElement => {
   if (!mountTo) {
@@ -210,6 +327,111 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     null;
   let focusedElementScrollRaf: number | null = null;
   let focusedElementScrollTimeouts: number[] = [];
+  let openOrder = options.isOpen.val ? nextSheetStackOpenOrder++ : 0;
+  const stackParticipantId = nextSheetStackParticipantId++;
+  let retainStackSnapshotWhileClosed = false;
+  let stackSnapshotRetainClearTimeout: number | null = null;
+  let stackSnapshotRetainClearHandler:
+    | ((event: TransitionEvent) => void)
+    | null = null;
+
+  const clearStackSnapshotRetainSchedule = () => {
+    if (stackSnapshotRetainClearTimeout !== null) {
+      clearTimeout(stackSnapshotRetainClearTimeout);
+      stackSnapshotRetainClearTimeout = null;
+    }
+
+    if (stackSnapshotRetainClearHandler) {
+      panel.removeEventListener(
+        "transitionend",
+        stackSnapshotRetainClearHandler,
+      );
+      stackSnapshotRetainClearHandler = null;
+    }
+  };
+
+  const clearStackSnapshot = () => {
+    root.style.removeProperty("--vsheet-stack-layer");
+    root.style.removeProperty("--vsheet-stack-offset-y");
+    root.style.removeProperty("--vsheet-stack-scale");
+    delete root.dataset.stackTop;
+    delete root.dataset.stackDepth;
+    delete root.dataset.stackSize;
+    delete root.dataset.stackDragging;
+  };
+
+  const finalizeStackSnapshotRetain = () => {
+    clearStackSnapshotRetainSchedule();
+    retainStackSnapshotWhileClosed = false;
+    if (!options.isOpen.val) {
+      clearStackSnapshot();
+    }
+  };
+
+  const scheduleStackSnapshotRetainClear = () => {
+    clearStackSnapshotRetainSchedule();
+
+    const maybeFinalize = () => {
+      if (options.isOpen.val) {
+        return;
+      }
+
+      finalizeStackSnapshotRetain();
+    };
+
+    stackSnapshotRetainClearHandler = (event: TransitionEvent) => {
+      void event;
+      maybeFinalize();
+    };
+    panel.addEventListener("transitionend", stackSnapshotRetainClearHandler);
+    stackSnapshotRetainClearTimeout = window.setTimeout(
+      maybeFinalize,
+      PANEL_TRANSITION_FALLBACK_MS,
+    );
+  };
+
+  const applyStackSnapshot = (snapshot: SheetStackSnapshot | null) => {
+    if (!snapshot) {
+      if (!retainStackSnapshotWhileClosed || options.isOpen.val) {
+        clearStackSnapshot();
+      }
+      return;
+    }
+
+    if (!options.isOpen.val) {
+      clearStackSnapshot();
+      return;
+    }
+
+    const stackDepth = Math.max(0, snapshot.depthFromTop);
+    const visualDepth = Math.max(0, snapshot.visualDepth);
+    const stackOffsetY = -visualDepth * STACK_OFFSET_STEP_PX;
+    const stackScale = Math.max(
+      STACK_MIN_SCALE,
+      1 - visualDepth * STACK_SCALE_STEP,
+    );
+    root.style.setProperty("--vsheet-stack-layer", `${snapshot.layer}`);
+    root.style.setProperty(
+      "--vsheet-stack-offset-y",
+      `${Math.round(stackOffsetY * 1000) / 1000}px`,
+    );
+    root.style.setProperty(
+      "--vsheet-stack-scale",
+      `${Math.round(stackScale * 1000) / 1000}`,
+    );
+    root.dataset.stackTop = snapshot.isTop ? "true" : "false";
+    root.dataset.stackDepth = `${stackDepth}`;
+    root.dataset.stackSize = `${snapshot.openCount}`;
+    if (snapshot.stackDragging) {
+      root.dataset.stackDragging = "true";
+      return;
+    }
+
+    delete root.dataset.stackDragging;
+  };
+
+  const isTopMostOpenSheet = () =>
+    options.isOpen.val && isTopOpenSheetStackParticipant(stackParticipantId);
 
   const isMobileViewport = () => {
     if (typeof window.matchMedia !== "function") {
@@ -631,7 +853,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const handleFocusIn = () => {
-    if (!options.isOpen.val || !isMobileViewport()) {
+    if (!options.isOpen.val || !isMobileViewport() || !isTopMostOpenSheet()) {
       return;
     }
 
@@ -738,6 +960,20 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     setBackdropOpenOpacity(1 - dragProgress);
   };
 
+  const getStackDragProgressDistance = () => {
+    if (dragPanelHeight > 0) {
+      return dragPanelHeight;
+    }
+
+    const measuredPanelHeight = panel.getBoundingClientRect().height;
+    if (measuredPanelHeight > 0) {
+      return measuredPanelHeight;
+    }
+
+    // Keep tests/environments without real layout measurable.
+    return DRAG_CLOSE_THRESHOLD_PX;
+  };
+
   const animatePanelToOpen = () => {
     panel.style.transform = "translateY(0px)";
     panel.addEventListener(
@@ -761,6 +997,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const handleBackdropClick = () => {
+    if (!isTopMostOpenSheet()) {
+      return;
+    }
+
     if (!closeOnBackdrop) {
       return;
     }
@@ -777,7 +1017,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       return;
     }
 
-    if (!closeOnEscape || !options.isOpen.val) {
+    if (!closeOnEscape || !isTopMostOpenSheet()) {
       return;
     }
 
@@ -785,7 +1025,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const handleTouchStart = (event: TouchEvent) => {
-    if (!options.isOpen.val || !isMobileViewport()) {
+    if (!options.isOpen.val || !isMobileViewport() || !isTopMostOpenSheet()) {
       return;
     }
 
@@ -819,6 +1059,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     dragOffsetY = 0;
     dragPanelHeight = panel.getBoundingClientRect().height;
     isDragging = false;
+    clearSheetStackDragProgress(stackParticipantId);
   };
 
   const handleTouchMove = (event: TouchEvent) => {
@@ -839,6 +1080,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
         dragOffsetY = 0;
         applyDragOffset(0);
         applyDragBackdropOpacity(0);
+        setSheetStackDragProgress(stackParticipantId, 0);
       }
       return;
     }
@@ -851,6 +1093,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     dragOffsetY = deltaY;
     applyDragOffset(deltaY);
     applyDragBackdropOpacity(deltaY);
+    setSheetStackDragProgress(
+      stackParticipantId,
+      deltaY / getStackDragProgressDistance(),
+    );
 
     event.preventDefault();
   };
@@ -867,11 +1113,13 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       dragOffsetY = 0;
       dragStartY = 0;
       dragPanelHeight = 0;
+      clearSheetStackDragProgress(stackParticipantId);
       return;
     }
 
     isDragging = false;
     setDraggingVisualState(false);
+    clearSheetStackDragProgress(stackParticipantId);
 
     if (dragOffsetY >= DRAG_CLOSE_THRESHOLD_PX) {
       animatePanelToClosed();
@@ -895,18 +1143,32 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   root.addEventListener("touchcancel", handleTouchEnd, { passive: true });
   panel.addEventListener("focusin", handleFocusIn);
 
+  sheetStackParticipants.set(stackParticipantId, {
+    id: stackParticipantId,
+    isOpen: () => options.isOpen.val,
+    getOpenOrder: () => openOrder,
+    applyStackSnapshot,
+  });
+
   syncOpenState(previousOpen);
+  syncSheetStackState();
 
   const stateSync = van.derive(() => {
     const currentOpen = options.isOpen.val;
     const justOpened = currentOpen && !previousOpen;
     const justClosed = !currentOpen && previousOpen;
     if (justOpened) {
+      openOrder = nextSheetStackOpenOrder++;
       shouldDeferCloseStateClear = false;
+      retainStackSnapshotWhileClosed = false;
+      clearStackSnapshotRetainSchedule();
     } else if (justClosed) {
       shouldDeferCloseStateClear = adjustableHeight && isMobileViewport();
+      retainStackSnapshotWhileClosed = true;
+      scheduleStackSnapshotRetainClear();
     }
     syncOpenState(currentOpen);
+    syncSheetStackState();
 
     if (currentOpen === previousOpen) {
       return;
@@ -923,6 +1185,8 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     open: () => setOpen(true, "api"),
     close: (reason = "api") => setOpen(false, reason),
     destroy: () => {
+      clearStackSnapshotRetainSchedule();
+      retainStackSnapshotWhileClosed = false;
       clearDragCloseStateClearSchedule();
       clearClosedPremeasureSchedule();
       stopReactiveViewportTracking();
@@ -937,6 +1201,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       root.removeEventListener("touchend", handleTouchEnd);
       root.removeEventListener("touchcancel", handleTouchEnd);
       panel.removeEventListener("focusin", handleFocusIn);
+      sheetStackParticipants.delete(stackParticipantId);
+      clearSheetStackDragProgress(stackParticipantId);
+      clearStackSnapshot();
+      syncSheetStackState();
       root.remove();
     },
   };
