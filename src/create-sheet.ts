@@ -563,37 +563,48 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const measureNaturalScrollSectionHeight = (contentWidth: number) => {
-    const measurementElement = scrollContent.cloneNode(true) as HTMLElement;
-    measurementElement.dataset.vsheetMeasure = "true";
-    measurementElement.style.position = "absolute";
-    measurementElement.style.left = "0";
-    measurementElement.style.top = "0";
-    measurementElement.style.visibility = "hidden";
-    measurementElement.style.pointerEvents = "none";
-    measurementElement.style.height = "auto";
-    measurementElement.style.maxHeight = "none";
-    measurementElement.style.minHeight = "0";
-    measurementElement.style.overflowY = "visible";
-    measurementElement.style.flex = "0 0 auto";
+    const liveScrollHeight = Math.max(
+      0,
+      Math.round(scrollContent.scrollHeight),
+    );
+    const liveClientHeight = Math.max(
+      0,
+      Math.round(scrollContent.clientHeight),
+    );
+    if (liveScrollHeight > liveClientHeight) {
+      return liveScrollHeight;
+    }
+
+    const previousWidth = scrollContent.style.width;
+    const previousFlex = scrollContent.style.flex;
+    const previousHeight = scrollContent.style.height;
+    const previousMaxHeight = scrollContent.style.maxHeight;
+    const previousMinHeight = scrollContent.style.minHeight;
+    const previousOverflowY = scrollContent.style.overflowY;
 
     if (contentWidth > 0) {
-      measurementElement.style.width = `${contentWidth}px`;
-    } else {
-      measurementElement.style.width = "100%";
+      scrollContent.style.width = `${contentWidth}px`;
     }
+    scrollContent.style.flex = "0 0 auto";
+    scrollContent.style.height = "auto";
+    scrollContent.style.maxHeight = "none";
+    scrollContent.style.minHeight = "0";
+    scrollContent.style.overflowY = "visible";
 
-    panel.append(measurementElement);
-    try {
-      return Math.max(0, Math.round(measurementElement.scrollHeight));
-    } finally {
-      measurementElement.remove();
-    }
+    const naturalHeight = Math.max(0, Math.round(scrollContent.scrollHeight));
+
+    scrollContent.style.width = previousWidth;
+    scrollContent.style.flex = previousFlex;
+    scrollContent.style.height = previousHeight;
+    scrollContent.style.maxHeight = previousMaxHeight;
+    scrollContent.style.minHeight = previousMinHeight;
+    scrollContent.style.overflowY = previousOverflowY;
+
+    return naturalHeight;
   };
 
   const getNaturalPanelHeight = () => {
-    const contentWidth = Math.round(
-      scrollContent.getBoundingClientRect().width,
-    );
+    const contentWidth = Math.round(scrollContent.clientWidth);
     if (contentWidth > 0 && contentWidth !== lastMeasuredScrollContentWidth) {
       naturalPanelHeightDirty = true;
     }
