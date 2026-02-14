@@ -14,6 +14,8 @@ type ActiveSheet = {
   sheet: ReturnType<typeof createSheet>;
 };
 
+type DemoLayout = "default" | "keyboard-probe";
+
 let activeSheet: ActiveSheet | null = null;
 const latestOptionResult = van.state("No option submitted yet.");
 
@@ -75,6 +77,51 @@ const demoSections = (mode: "mobile" | "desktop"): SheetSection[] => [
   },
 ];
 
+const keyboardProbeSections = (): SheetSection[] => [
+  {
+    className: "demo-keyboard-fixed demo-keyboard-fixed-top",
+    content: div(
+      strong("Fixed Header Block"),
+      p("This top section is intentionally non-scrollable by config."),
+      p("Focus inputs to validate fixed sections can still adapt to keyboard."),
+      input({
+        type: "text",
+        placeholder: "Header input (fixed section)",
+        "aria-label": "Header fixed section input",
+      }),
+    ),
+  },
+  {
+    className: "demo-keyboard-probe-content",
+    scroll: true,
+    content: div(
+      { class: "demo-sheet-scroll" },
+      div(
+        { class: "row" },
+        strong("Scrollable Middle"),
+        p("This is still the only `scroll: true` section."),
+      ),
+      ...Array.from({ length: 8 }, (_, i) =>
+        div(
+          { class: "row" },
+          strong(`Keyboard Item ${i + 1}`),
+          p("Use these rows to confirm middle scrolling remains intact."),
+        ),
+      ),
+    ),
+  },
+  {
+    className: "demo-keyboard-fixed demo-keyboard-fixed-bottom",
+    content: div(
+      div(
+        { class: "demo-keyboard-actions" },
+        button({ type: "button", class: "secondary" }, "Cancel"),
+        button({ type: "button" }, "Save"),
+      ),
+    ),
+  },
+];
+
 const destroySheetAfterCloseAnimation = (entry: ActiveSheet) => {
   const panel = entry.sheet.element.querySelector(".vsheet-panel");
   let settled = false;
@@ -106,13 +153,27 @@ const closeActiveSheet = (immediate = false) => {
   entry.isOpen.val = false;
 };
 
-const openDemoSheet = (mode: "mobile" | "desktop") => {
+const resolveDemoSections = (
+  mode: "mobile" | "desktop",
+  layout: DemoLayout,
+): SheetSection[] => {
+  if (layout === "keyboard-probe") {
+    return keyboardProbeSections();
+  }
+
+  return demoSections(mode);
+};
+
+const openDemoSheet = (
+  mode: "mobile" | "desktop",
+  layout: DemoLayout = "default",
+) => {
   closeActiveSheet(true);
 
   const isOpen = van.state(false);
   const sheet = createSheet({
     isOpen,
-    sections: demoSections(mode),
+    sections: resolveDemoSections(mode, layout),
     onOpenChange: (open) => {
       if (!open) {
         const entry = activeSheet;
@@ -188,6 +249,21 @@ const app = div(
         "Open Option Selector",
       ),
       p({ class: "demo-result" }, () => latestOptionResult.val),
+    ),
+    div(
+      { class: "demo-card" },
+      h2("Keyboard + Fixed Sections"),
+      p(
+        "Opens a mobile sheet with fixed header/footer inputs to verify non-scroll sections adapt when keyboard appears.",
+      ),
+      button(
+        {
+          type: "button",
+          class: "accent",
+          onclick: () => openDemoSheet("mobile", "keyboard-probe"),
+        },
+        "Open Keyboard Probe",
+      ),
     ),
   ),
 );
