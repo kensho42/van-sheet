@@ -118,6 +118,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let baseMobileViewportHeight = 0;
   let stopViewportTracking: (() => void) | null = null;
   let focusedElementScrollRaf: number | null = null;
+  let focusedElementScrollTimeouts: number[] = [];
 
   const isMobileViewport = () => {
     if (typeof window.matchMedia !== "function") {
@@ -130,9 +131,22 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const clearMobileHeightState = () => {
     root.style.removeProperty("--vsheet-mobile-height");
     root.style.removeProperty("--vsheet-keyboard-height");
+    root.style.removeProperty("--vsheet-content-extra-bottom");
     root.style.removeProperty("--vsheet-root-offset-y");
     delete root.dataset.keyboardOpen;
     baseMobileViewportHeight = 0;
+  };
+
+  const clearFocusedElementScrollSchedule = () => {
+    if (focusedElementScrollRaf !== null) {
+      cancelAnimationFrame(focusedElementScrollRaf);
+      focusedElementScrollRaf = null;
+    }
+
+    for (const timeoutId of focusedElementScrollTimeouts) {
+      clearTimeout(timeoutId);
+    }
+    focusedElementScrollTimeouts = [];
   };
 
   const stopReactiveViewportTracking = () => {
@@ -170,6 +184,24 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     return Math.max(0, Math.round(viewport.offsetTop));
   };
 
+  const getVisibleViewportTop = () => {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return 0;
+    }
+
+    return Math.round(viewport.offsetTop);
+  };
+
+  const getVisibleViewportBottom = () => {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return getLayoutViewportHeight();
+    }
+
+    return Math.round(viewport.offsetTop + viewport.height);
+  };
+
   const updateMobileOpenHeight = () => {
     if (!options.isOpen.val || !isMobileViewport()) {
       return;
@@ -193,6 +225,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     root.style.setProperty("--vsheet-mobile-height", `${panelHeight}px`);
     root.style.setProperty("--vsheet-keyboard-height", `${keyboardHeight}px`);
+    root.style.setProperty(
+      "--vsheet-content-extra-bottom",
+      `${keyboardHeight}px`,
+    );
     root.style.setProperty("--vsheet-root-offset-y", `${viewportOffsetTop}px`);
     if (keyboardHeight > 0) {
       root.dataset.keyboardOpen = "true";
@@ -234,31 +270,54 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     const contentRect = content.getBoundingClientRect();
     const focusedRect = activeElement.getBoundingClientRect();
+    const visibleViewportTop = getVisibleViewportTop();
+    const visibleViewportBottom = getVisibleViewportBottom();
+    const visibleContentTop = Math.max(contentRect.top, visibleViewportTop);
+    const visibleContentBottom = Math.min(
+      contentRect.bottom,
+      visibleViewportBottom,
+    );
     const topSafety = 12;
     const bottomSafety = 16;
 
     const overflowBottom =
-      focusedRect.bottom - (contentRect.bottom - bottomSafety);
+      focusedRect.bottom - (visibleContentBottom - bottomSafety);
     if (overflowBottom > 0) {
       content.scrollTop += overflowBottom;
       return;
     }
 
-    const overflowTop = contentRect.top + topSafety - focusedRect.top;
+    const overflowTop = visibleContentTop + topSafety - focusedRect.top;
     if (overflowTop > 0) {
       content.scrollTop -= overflowTop;
     }
   };
 
   const scheduleFocusedElementIntoView = () => {
-    if (focusedElementScrollRaf !== null) {
-      cancelAnimationFrame(focusedElementScrollRaf);
-    }
+    clearFocusedElementScrollSchedule();
 
-    focusedElementScrollRaf = requestAnimationFrame(() => {
+    const runEnsureVisible = () => {
+      if (!options.isOpen.val) {
+        return;
+      }
+
       focusedElementScrollRaf = null;
       ensureFocusedElementVisible();
+    };
+
+    focusedElementScrollRaf = requestAnimationFrame(() => {
+      runEnsureVisible();
     });
+
+    // iOS keyboard animations can continue for a few hundred ms.
+    for (const delay of [120, 260, 420]) {
+      const timeoutId = window.setTimeout(() => {
+        requestAnimationFrame(() => {
+          runEnsureVisible();
+        });
+      }, delay);
+      focusedElementScrollTimeouts.push(timeoutId);
+    }
   };
 
   const handleFocusIn = () => {
@@ -482,6 +541,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     destroy: () => {
       stopReactiveViewportTracking();
       clearMobileHeightState();
+      clearFocusedElementScrollSchedule();
       backdrop.removeEventListener("click", handleBackdropClick);
       closeButton.removeEventListener("click", handleCloseButtonClick);
       document.removeEventListener("keydown", handleEscape);
@@ -490,10 +550,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       panel.removeEventListener("touchend", handleTouchEnd);
       panel.removeEventListener("touchcancel", handleTouchEnd);
       panel.removeEventListener("focusin", handleFocusIn);
-      if (focusedElementScrollRaf !== null) {
-        cancelAnimationFrame(focusedElementScrollRaf);
-        focusedElementScrollRaf = null;
-      }
       root.remove();
     },
   };

@@ -215,6 +215,9 @@ describe("createSheet mobile height snapshot", () => {
     expect(
       sheet.element.style.getPropertyValue("--vsheet-keyboard-height"),
     ).toBe("300px");
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
+    ).toBe("300px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "0px",
     );
@@ -229,6 +232,9 @@ describe("createSheet mobile height snapshot", () => {
     );
     expect(
       sheet.element.style.getPropertyValue("--vsheet-keyboard-height"),
+    ).toBe("0px");
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
     ).toBe("0px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "0px",
@@ -264,6 +270,9 @@ describe("createSheet mobile height snapshot", () => {
     );
     expect(
       sheet.element.style.getPropertyValue("--vsheet-keyboard-height"),
+    ).toBe("180px");
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
     ).toBe("180px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "120px",
