@@ -57,10 +57,18 @@
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
+  padding-bottom: var(--vsheet-sections-extra-bottom, 0px);
 }
 
 .vsheet-section {
   flex: 0 0 auto;
+  min-height: 0;
+}
+
+.vsheet-root[data-keyboard-open="true"]
+  .vsheet-section[data-vsheet-scroll="false"] {
+  flex-shrink: 1;
+  overflow-y: auto;
 }
 
 .vsheet-close {

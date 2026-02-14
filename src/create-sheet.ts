@@ -113,6 +113,7 @@ const findScrollableAncestor = (
 
 export const createSheet = (options: SheetOptions): SheetInstance => {
   const resolvedSections = normalizeSections(options);
+  const hasFixedSections = resolvedSections.some(({ scroll }) => !scroll);
   const dismissible = options.dismissible ?? true;
   const closeOnBackdrop = options.closeOnBackdrop ?? true;
   const closeOnEscape = options.closeOnEscape ?? true;
@@ -201,6 +202,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     root.style.removeProperty("--vsheet-mobile-height");
     root.style.removeProperty("--vsheet-keyboard-height");
     root.style.removeProperty("--vsheet-content-extra-bottom");
+    root.style.removeProperty("--vsheet-sections-extra-bottom");
     root.style.removeProperty("--vsheet-root-offset-y");
     delete root.dataset.keyboardOpen;
     baseMobileViewportHeight = 0;
@@ -291,12 +293,18 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       baseMobileViewportHeight * MOBILE_SHEET_HEIGHT_RATIO,
     );
     const panelHeight = Math.max(0, basePanelHeight - keyboardHeight);
+    const contentExtraBottom = hasFixedSections ? 0 : keyboardHeight;
+    const sectionsExtraBottom = hasFixedSections ? keyboardHeight : 0;
 
     root.style.setProperty("--vsheet-mobile-height", `${panelHeight}px`);
     root.style.setProperty("--vsheet-keyboard-height", `${keyboardHeight}px`);
     root.style.setProperty(
       "--vsheet-content-extra-bottom",
-      `${keyboardHeight}px`,
+      `${contentExtraBottom}px`,
+    );
+    root.style.setProperty(
+      "--vsheet-sections-extra-bottom",
+      `${sectionsExtraBottom}px`,
     );
     root.style.setProperty("--vsheet-root-offset-y", `${viewportOffsetTop}px`);
     if (keyboardHeight > 0) {

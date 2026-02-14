@@ -221,6 +221,7 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 - `--vsheet-mobile-height`
 - `--vsheet-keyboard-height`
 - `--vsheet-content-extra-bottom`
+- `--vsheet-sections-extra-bottom`
 - `--vsheet-root-offset-y`
 
 Example:

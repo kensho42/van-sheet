@@ -218,6 +218,9 @@ describe("createSheet mobile height snapshot", () => {
     expect(
       sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
     ).toBe("300px");
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
+    ).toBe("0px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "0px",
     );
@@ -236,9 +239,56 @@ describe("createSheet mobile height snapshot", () => {
     expect(
       sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
     ).toBe("0px");
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
+    ).toBe("0px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "0px",
     );
+    expect(sheet.element.dataset.keyboardOpen).toBeUndefined();
+
+    sheet.destroy();
+  });
+
+  it("applies keyboard inset to the section wrapper when fixed sections exist", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    const visualViewport = createVisualViewportMock(1000, 0);
+    setVisualViewport(visualViewport);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      sections: [
+        { content: "top" },
+        { content: "middle", scroll: true },
+        { content: "bottom" },
+      ],
+    });
+
+    await flush();
+
+    visualViewport.height = 700;
+    visualViewport.emit("resize");
+    await flush();
+
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
+    ).toBe("0px");
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
+    ).toBe("300px");
+    expect(sheet.element.dataset.keyboardOpen).toBe("true");
+
+    visualViewport.height = 1000;
+    visualViewport.emit("resize");
+    await flush();
+
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
+    ).toBe("0px");
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
+    ).toBe("0px");
     expect(sheet.element.dataset.keyboardOpen).toBeUndefined();
 
     sheet.destroy();
