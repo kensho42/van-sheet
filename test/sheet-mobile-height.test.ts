@@ -55,7 +55,10 @@ const originalClientHeight = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
   "clientHeight",
 );
-const globalWithResizeObserver = globalThis as typeof globalThis & {
+const globalWithResizeObserver = globalThis as Omit<
+  typeof globalThis,
+  "ResizeObserver"
+> & {
   ResizeObserver?: typeof ResizeObserver;
 };
 const originalResizeObserver = globalWithResizeObserver.ResizeObserver;
