@@ -138,4 +138,15 @@
   .vsheet-panel {
     height: var(--vsheet-mobile-height, 95dvh);
   }
+
+  .vsheet-root[data-adjustable-height="true"] .vsheet-panel {
+    height: auto;
+    max-height: var(--vsheet-mobile-height, 95dvh);
+  }
+
+  .vsheet-root[data-adjustable-height="true"][data-adjustable-tracking="true"]
+    .vsheet-panel {
+    height: var(--vsheet-mobile-height, 95dvh);
+    max-height: 100dvh;
+  }
 }

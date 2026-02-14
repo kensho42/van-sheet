@@ -334,6 +334,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let stackSnapshotRetainClearHandler:
     | ((event: TransitionEvent) => void)
     | null = null;
+  let adjustableTrackingReady = false;
+  let adjustableTrackingStartTimeout: number | null = null;
+  let adjustableTrackingStartHandler:
+    | ((event: TransitionEvent) => void)
+    | null = null;
 
   const clearStackSnapshotRetainSchedule = () => {
     if (stackSnapshotRetainClearTimeout !== null) {
@@ -491,6 +496,92 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     cancelAnimationFrame(scheduledClosedPremeasureRaf);
     scheduledClosedPremeasureRaf = null;
+  };
+
+  const clearAdjustableTrackingStartSchedule = () => {
+    if (adjustableTrackingStartTimeout !== null) {
+      clearTimeout(adjustableTrackingStartTimeout);
+      adjustableTrackingStartTimeout = null;
+    }
+
+    if (adjustableTrackingStartHandler) {
+      panel.removeEventListener(
+        "transitionend",
+        adjustableTrackingStartHandler,
+      );
+      adjustableTrackingStartHandler = null;
+    }
+  };
+
+  const updateAdjustableTrackingDataset = () => {
+    if (
+      adjustableHeight &&
+      adjustableTrackingReady &&
+      options.isOpen.val &&
+      isMobileViewport()
+    ) {
+      root.dataset.adjustableTracking = "true";
+      return;
+    }
+
+    delete root.dataset.adjustableTracking;
+  };
+
+  const resetAdjustableTracking = () => {
+    clearAdjustableTrackingStartSchedule();
+    adjustableTrackingReady = false;
+    updateAdjustableTrackingDataset();
+  };
+
+  const startAdjustableTracking = () => {
+    clearAdjustableTrackingStartSchedule();
+
+    if (!adjustableHeight || !options.isOpen.val || !isMobileViewport()) {
+      return;
+    }
+
+    if (adjustableTrackingReady) {
+      return;
+    }
+
+    adjustableTrackingReady = true;
+    naturalPanelHeightDirty = true;
+    updateMobileOpenHeight();
+    updateAdjustableTrackingDataset();
+    ensureContentHeightTracking();
+  };
+
+  const scheduleAdjustableTrackingStart = () => {
+    clearAdjustableTrackingStartSchedule();
+
+    if (
+      !adjustableHeight ||
+      adjustableTrackingReady ||
+      !options.isOpen.val ||
+      !isMobileViewport()
+    ) {
+      return;
+    }
+
+    const maybeStart = (event?: TransitionEvent) => {
+      if (event && event.target !== panel) {
+        return;
+      }
+
+      if (event && event.propertyName !== "transform") {
+        return;
+      }
+
+      startAdjustableTracking();
+    };
+
+    adjustableTrackingStartHandler = (event: TransitionEvent) => {
+      maybeStart(event);
+    };
+    panel.addEventListener("transitionend", adjustableTrackingStartHandler);
+    adjustableTrackingStartTimeout = window.setTimeout(() => {
+      maybeStart();
+    }, PANEL_TRANSITION_FALLBACK_MS);
   };
 
   const scheduleClosedAdjustablePremeasure = () => {
@@ -745,9 +836,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       baseMobileViewportHeight * MOBILE_SHEET_HEIGHT_RATIO,
     );
     const maxPanelHeight = Math.max(0, basePanelHeight - keyboardHeight);
-    const panelHeight = adjustableHeight
-      ? Math.min(maxPanelHeight, getNaturalPanelHeight())
-      : maxPanelHeight;
+    const panelHeight =
+      adjustableHeight && adjustableTrackingReady
+        ? Math.min(maxPanelHeight, getNaturalPanelHeight())
+        : maxPanelHeight;
     const contentExtraBottom = hasFixedSections ? 0 : keyboardHeight;
     const sectionsExtraBottom = hasFixedSections ? keyboardHeight : 0;
 
@@ -862,6 +954,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
   const applyMobileOpenHeight = (open: boolean) => {
     if (!open || !isMobileViewport()) {
+      resetAdjustableTracking();
       clearClosedPremeasureSchedule();
       stopReactiveViewportTracking();
       stopContentHeightTracking();
@@ -887,7 +980,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     shouldDeferCloseStateClear = false;
     clearClosedPremeasureSchedule();
     ensureReactiveViewportTracking();
-    ensureContentHeightTracking();
+    if (adjustableHeight && !adjustableTrackingReady) {
+      stopContentHeightTracking();
+    } else {
+      ensureContentHeightTracking();
+    }
     updateMobileOpenHeight();
   };
 
@@ -901,6 +998,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     root.dataset.state = open ? "open" : "closed";
     root.setAttribute("aria-hidden", open ? "false" : "true");
     applyMobileOpenHeight(open);
+    updateAdjustableTrackingDataset();
 
     if (open) {
       setBackdropOpenOpacity(1);
@@ -1151,6 +1249,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   });
 
   syncOpenState(previousOpen);
+  if (previousOpen && adjustableHeight && isMobileViewport()) {
+    scheduleAdjustableTrackingStart();
+  }
   syncSheetStackState();
 
   const stateSync = van.derive(() => {
@@ -1162,12 +1263,17 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       shouldDeferCloseStateClear = false;
       retainStackSnapshotWhileClosed = false;
       clearStackSnapshotRetainSchedule();
+      adjustableTrackingReady = false;
     } else if (justClosed) {
       shouldDeferCloseStateClear = adjustableHeight && isMobileViewport();
       retainStackSnapshotWhileClosed = true;
       scheduleStackSnapshotRetainClear();
+      resetAdjustableTracking();
     }
     syncOpenState(currentOpen);
+    if (justOpened && adjustableHeight && isMobileViewport()) {
+      scheduleAdjustableTrackingStart();
+    }
     syncSheetStackState();
 
     if (currentOpen === previousOpen) {
@@ -1187,6 +1293,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     destroy: () => {
       clearStackSnapshotRetainSchedule();
       retainStackSnapshotWhileClosed = false;
+      resetAdjustableTracking();
       clearDragCloseStateClearSchedule();
       clearClosedPremeasureSchedule();
       stopReactiveViewportTracking();

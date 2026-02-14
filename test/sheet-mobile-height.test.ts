@@ -34,6 +34,15 @@ const flush = async () => {
   await Promise.resolve();
 };
 
+const dispatchPanelTransformTransitionEnd = (root: HTMLElement) => {
+  const panel = root.querySelector<HTMLElement>(".vsheet-panel");
+  const transitionEnd = new Event("transitionend");
+  Object.defineProperty(transitionEnd, "propertyName", {
+    value: "transform",
+  });
+  panel?.dispatchEvent(transitionEnd);
+};
+
 const originalInnerHeight = Object.getOwnPropertyDescriptor(
   window,
   "innerHeight",
@@ -465,10 +474,18 @@ describe("createSheet adjustable mobile height", () => {
     });
 
     await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+    expect(sheet.element.dataset.adjustableTracking).toBeUndefined();
+
+    dispatchPanelTransformTransitionEnd(sheet.element);
+    await flush();
 
     expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
       "480px",
     );
+    expect(sheet.element.dataset.adjustableTracking).toBe("true");
 
     sheet.destroy();
   });
@@ -494,6 +511,11 @@ describe("createSheet adjustable mobile height", () => {
 
     await flush();
 
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+    dispatchPanelTransformTransitionEnd(sheet.element);
+    await flush();
     expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
       "950px",
     );
@@ -529,6 +551,11 @@ describe("createSheet adjustable mobile height", () => {
       adjustableHeight: true,
     });
 
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+    dispatchPanelTransformTransitionEnd(sheet.element);
     await flush();
     expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
       "480px",
@@ -581,6 +608,11 @@ describe("createSheet adjustable mobile height", () => {
 
     await flush();
     expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+    dispatchPanelTransformTransitionEnd(sheet.element);
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
       "480px",
     );
 
@@ -619,6 +651,11 @@ describe("createSheet adjustable mobile height", () => {
       adjustableHeight: true,
     });
 
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+    dispatchPanelTransformTransitionEnd(sheet.element);
     await flush();
     expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
       "480px",
