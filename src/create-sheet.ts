@@ -1,5 +1,9 @@
 import van from "vanjs-core";
 import {
+  lockDocumentBodyScroll,
+  unlockDocumentBodyScroll,
+} from "./internal/body-scroll-lock";
+import {
   findClosestMatchingAncestor,
   findScrollableAncestor,
   normalizeSections,
@@ -138,6 +142,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let isHorizontalGestureBlocked = false;
   let dragStartBlockTarget: HTMLElement | null = null;
   let activeDragTouchId: number | null = null;
+  let activeScrollTouchId: number | null = null;
+  let lastScrollTouchX = 0;
+  let lastScrollTouchY = 0;
   let baseMobileViewportHeight = 0;
   let stopViewportTracking: (() => void) | null = null;
   let scheduledMobileHeightUpdateRaf: number | null = null;
@@ -155,6 +162,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const stackParticipantId = claimSheetStackParticipantId();
   let retainStackSnapshotWhileClosed = false;
   let adjustableTrackingReady = false;
+  let hasDocumentBodyScrollLock = false;
   type TransitionFallbackSchedule = {
     timeoutId: number | null;
     transitionHandler: ((event: TransitionEvent) => void) | null;
@@ -801,10 +809,27 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     updateMobileOpenHeight();
   };
 
+  const syncDocumentBodyScrollLock = (open: boolean) => {
+    if (open) {
+      if (!hasDocumentBodyScrollLock) {
+        hasDocumentBodyScrollLock = lockDocumentBodyScroll();
+      }
+      return;
+    }
+
+    if (!hasDocumentBodyScrollLock) {
+      return;
+    }
+
+    unlockDocumentBodyScroll();
+    hasDocumentBodyScrollLock = false;
+  };
+
   const syncOpenState = (open: boolean) => {
     setRootDatasetFlag("adjustableHeight", adjustableHeight && open);
     root.dataset.state = open ? "open" : "closed";
     root.setAttribute("aria-hidden", open ? "false" : "true");
+    syncDocumentBodyScrollLock(open);
     applyMobileOpenHeight(open);
     updateAdjustableTrackingDataset();
 
@@ -924,6 +949,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     const touch = event.touches[0];
+    activeScrollTouchId = touch.identifier;
+    lastScrollTouchX = touch.clientX;
+    lastScrollTouchY = touch.clientY;
     const target = event.target;
     const interactiveTarget =
       target instanceof HTMLElement
@@ -965,6 +993,51 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const handleTouchMove = (event: TouchEvent) => {
+    const trackedScrollTouch =
+      activeScrollTouchId === null
+        ? null
+        : Array.from(event.touches).find(
+            ({ identifier }) => identifier === activeScrollTouchId,
+          );
+    const touchDeltaX = trackedScrollTouch
+      ? trackedScrollTouch.clientX - lastScrollTouchX
+      : 0;
+    const touchDeltaY = trackedScrollTouch
+      ? trackedScrollTouch.clientY - lastScrollTouchY
+      : 0;
+    if (trackedScrollTouch) {
+      lastScrollTouchX = trackedScrollTouch.clientX;
+      lastScrollTouchY = trackedScrollTouch.clientY;
+    }
+
+    if (
+      event.cancelable &&
+      options.isOpen.val &&
+      isMobileViewport() &&
+      isTopMostOpenSheet() &&
+      Math.abs(touchDeltaY) > Math.abs(touchDeltaX)
+    ) {
+      const moveTarget = event.target;
+      if (!(moveTarget instanceof Node) || !panel.contains(moveTarget)) {
+        event.preventDefault();
+      } else {
+        const scrollableAncestor = findScrollableAncestor(moveTarget, panel);
+        if (!scrollableAncestor) {
+          event.preventDefault();
+        } else {
+          const atTop = scrollableAncestor.scrollTop <= 0;
+          const atBottom =
+            Math.ceil(
+              scrollableAncestor.scrollTop + scrollableAncestor.clientHeight,
+            ) >= scrollableAncestor.scrollHeight;
+
+          if ((touchDeltaY > 0 && atTop) || (touchDeltaY < 0 && atBottom)) {
+            event.preventDefault();
+          }
+        }
+      }
+    }
+
     if (!isTouchTracking || activeDragTouchId === null) {
       return;
     }
@@ -1024,6 +1097,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const handleTouchEnd = () => {
+    activeScrollTouchId = null;
+    lastScrollTouchX = 0;
+    lastScrollTouchY = 0;
+
     if (!isTouchTracking) {
       return;
     }
@@ -1125,6 +1202,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       clearDragCloseStateClearSchedule();
       clearMobileHeightState();
       clearFocusedElementScrollSchedule();
+      syncDocumentBodyScrollLock(false);
       backdrop.removeEventListener("click", handleBackdropClick);
       closeButton.removeEventListener("click", handleCloseButtonClick);
       document.removeEventListener("keydown", handleEscape);

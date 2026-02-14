@@ -8,6 +8,7 @@
 - Dismissal pathways for backdrop, `Escape`, close button, and touch drag.
 - Multiple simultaneously open sheets with layered iOS-style depth.
 - Simple `content` mode or structured `sections` mode with one scrollable region.
+- Background page scroll locking while one or more sheets are open.
 - Mobile keyboard-aware viewport handling.
 - Optional content-fit mobile height (`adjustableHeight`) capped to 95% viewport.
 - Optional floating close button overlay (`floatingCloseButton`).
