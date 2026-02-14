@@ -265,11 +265,13 @@ body {
   left: auto;
   width: min(430px, 100vw);
   border-radius: 20px 0 0 20px;
+  transform-origin: left center;
   transform: translateX(100%);
 }
 
 .vsheet-root[data-demo-mode="desktop"][data-state="open"] .vsheet-panel {
-  transform: translateX(0);
+  transform: translateX(var(--vsheet-stack-offset-y, 0px))
+    scale(var(--vsheet-stack-scale, 1));
 }
 
 .option-sheet {

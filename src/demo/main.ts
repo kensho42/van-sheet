@@ -13,7 +13,15 @@ const ADJUSTABLE_OPEN_DELAY_MS = 20;
 type DemoLayout = "default" | "keyboard-probe" | "adjustable-height";
 const latestOptionResult = van.state("No option submitted yet.");
 
-const demoSections = (mode: "mobile" | "desktop"): SheetSection[] => [
+type DemoSectionActions = {
+  closeSheet: () => void;
+  openAnotherSheet: () => void;
+};
+
+const demoSections = (
+  mode: "mobile" | "desktop",
+  actions?: DemoSectionActions,
+): SheetSection[] => [
   {
     className: "demo-sheet-top",
     content: div(
@@ -56,11 +64,31 @@ const demoSections = (mode: "mobile" | "desktop"): SheetSection[] => [
   },
   {
     className: "demo-sheet-footer",
-    content: div(
-      { class: "demo-sheet-actions" },
-      button({ type: "button", class: "secondary" }, "Cancel"),
-      button({ type: "button" }, "Confirm"),
-    ),
+    content:
+      mode === "desktop"
+        ? div(
+            { class: "demo-sheet-actions" },
+            button(
+              {
+                type: "button",
+                class: "secondary",
+                onclick: actions?.closeSheet ?? (() => {}),
+              },
+              "Close Drawer",
+            ),
+            button(
+              {
+                type: "button",
+                onclick: actions?.openAnotherSheet ?? (() => {}),
+              },
+              "Add Drawer",
+            ),
+          )
+        : div(
+            { class: "demo-sheet-actions" },
+            button({ type: "button", class: "secondary" }, "Cancel"),
+            button({ type: "button" }, "Confirm"),
+          ),
   },
 ];
 
@@ -207,6 +235,7 @@ const destroySheetAfterCloseAnimation = (
 const resolveDemoSections = (
   mode: "mobile" | "desktop",
   layout: DemoLayout,
+  actions?: DemoSectionActions,
 ): SheetSection[] => {
   if (layout === "adjustable-height") {
     return adjustableHeightSections();
@@ -216,7 +245,7 @@ const resolveDemoSections = (
     return keyboardProbeSections();
   }
 
-  return demoSections(mode);
+  return demoSections(mode, actions);
 };
 
 const openDemoSheet = (
@@ -224,9 +253,18 @@ const openDemoSheet = (
   layout: DemoLayout = "default",
 ) => {
   const isOpen = van.state(false);
+  const closeSheet = () => {
+    isOpen.val = false;
+  };
+  const openAnotherSheet = () => {
+    openDemoSheet(mode, layout);
+  };
   const sheet = createSheet({
     isOpen,
-    sections: resolveDemoSections(mode, layout),
+    sections: resolveDemoSections(mode, layout, {
+      closeSheet,
+      openAnotherSheet,
+    }),
     adjustableHeight: layout === "adjustable-height",
     onOpenChange: (open) => {
       if (!open) {
@@ -360,7 +398,9 @@ const app = div(
     div(
       { class: "demo-card" },
       h2("Desktop Demo"),
-      p("Opens as a right-side drawer. Repeated opens also stack layers."),
+      p(
+        "Opens as a right-side drawer. Use the in-drawer Add Drawer button to push stacked drawers.",
+      ),
       button(
         {
           type: "button",
