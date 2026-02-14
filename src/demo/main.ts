@@ -1,5 +1,6 @@
 import van from "vanjs-core";
 import { createSheet } from "../create-sheet";
+import { openOptionSheet } from "./open-option-sheet";
 import "../style.css";
 import "./demo.css";
 
@@ -13,6 +14,7 @@ type ActiveSheet = {
 };
 
 let activeSheet: ActiveSheet | null = null;
+const latestOptionResult = van.state("No option submitted yet.");
 
 const destroySheet = (entry: ActiveSheet) => {
   entry.sheet.destroy();
@@ -120,6 +122,15 @@ const openDemoSheet = (mode: "mobile" | "desktop") => {
   });
 };
 
+const openOptionSelectorDemo = async () => {
+  closeActiveSheet(true);
+  const result = await openOptionSheet();
+  latestOptionResult.val =
+    result === null
+      ? "Dismissed without a submitted value."
+      : `Submitted value: ${result.toUpperCase()}`;
+};
+
 const app = div(
   { class: "demo" },
   h1("van-sheet demo"),
@@ -147,6 +158,22 @@ const app = div(
         },
         "Open Desktop Drawer",
       ),
+    ),
+    div(
+      { class: "demo-card" },
+      h2("Return Value Demo"),
+      p("Shows how a sheet can resolve a Promise with the selected option."),
+      button(
+        {
+          type: "button",
+          class: "accent",
+          onclick: () => {
+            void openOptionSelectorDemo();
+          },
+        },
+        "Open Option Selector",
+      ),
+      p({ class: "demo-result" }, () => latestOptionResult.val),
     ),
   ),
 );

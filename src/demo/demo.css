@@ -70,6 +70,16 @@ body {
   background: linear-gradient(135deg, #3d4252 0%, #596078 100%);
 }
 
+.demo-card button.accent {
+  background: linear-gradient(135deg, #188c6f 0%, #1ead90 100%);
+}
+
+.demo-result {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  color: #2e4f70;
+}
+
 .demo-sheet-content {
   display: grid;
   gap: 0.75rem;
@@ -112,4 +122,50 @@ body {
 
 .vsheet-root[data-demo-mode="desktop"][data-state="open"] .vsheet-panel {
   transform: translateX(0);
+}
+
+.option-sheet {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.option-sheet p {
+  margin: 0;
+}
+
+.option-sheet-options {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.option-sheet-option {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #c8d9ea;
+  background: #f6faff;
+  color: #1c3550;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.option-sheet-option.is-active {
+  border-color: #188c6f;
+  background: #dff8f1;
+  color: #0e5c49;
+}
+
+.option-sheet-submit {
+  justify-self: start;
+  margin-top: 0.25rem;
+  padding: 0.7rem 1.2rem;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #1770d3 0%, #1d90e2 100%);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
