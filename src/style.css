@@ -20,7 +20,7 @@
 }
 
 .vsheet-root[data-state="open"] .vsheet-backdrop {
-  opacity: 1;
+  opacity: var(--vsheet-backdrop-open-opacity, 1);
 }
 
 .vsheet-panel {
@@ -43,6 +43,7 @@
     height 250ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+.vsheet-root[data-dragging="true"] .vsheet-backdrop,
 .vsheet-root[data-dragging="true"] .vsheet-panel {
   transition: none;
 }

@@ -190,6 +190,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let previousOpen = options.isOpen.val;
   let dragStartY = 0;
   let dragOffsetY = 0;
+  let dragPanelHeight = 0;
   let isTouchTracking = false;
   let isDragging = false;
   let activeDragTouchId: number | null = null;
@@ -680,8 +681,12 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     applyMobileOpenHeight(open);
 
     if (open) {
+      setBackdropOpenOpacity(1);
       panel.style.transform = "";
+      return;
     }
+
+    clearBackdropOpenOpacity();
   };
 
   const setOpen = (open: boolean, reason: SheetReason) => {
@@ -706,8 +711,31 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     delete root.dataset.dragging;
   };
 
+  const setBackdropOpenOpacity = (opacity: number) => {
+    const clampedOpacity = Math.max(0, Math.min(1, opacity));
+    root.style.setProperty(
+      "--vsheet-backdrop-open-opacity",
+      `${Math.round(clampedOpacity * 1000) / 1000}`,
+    );
+  };
+
+  const clearBackdropOpenOpacity = () => {
+    root.style.removeProperty("--vsheet-backdrop-open-opacity");
+  };
+
   const applyDragOffset = (offsetY: number) => {
     panel.style.transform = `translateY(${offsetY}px)`;
+  };
+
+  const applyDragBackdropOpacity = (offsetY: number) => {
+    const panelHeight = dragPanelHeight || panel.getBoundingClientRect().height;
+    if (panelHeight <= 0) {
+      setBackdropOpenOpacity(1);
+      return;
+    }
+
+    const dragProgress = Math.max(0, Math.min(1, offsetY / panelHeight));
+    setBackdropOpenOpacity(1 - dragProgress);
   };
 
   const animatePanelToOpen = () => {
@@ -789,6 +817,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     activeDragTouchId = touch.identifier;
     dragStartY = touch.clientY;
     dragOffsetY = 0;
+    dragPanelHeight = panel.getBoundingClientRect().height;
     isDragging = false;
   };
 
@@ -806,6 +835,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     const deltaY = touch.clientY - dragStartY;
     if (deltaY <= 0) {
+      if (isDragging) {
+        dragOffsetY = 0;
+        applyDragOffset(0);
+        applyDragBackdropOpacity(0);
+      }
       return;
     }
 
@@ -816,6 +850,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     dragOffsetY = deltaY;
     applyDragOffset(deltaY);
+    applyDragBackdropOpacity(deltaY);
 
     event.preventDefault();
   };
@@ -831,6 +866,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     if (!isDragging) {
       dragOffsetY = 0;
       dragStartY = 0;
+      dragPanelHeight = 0;
       return;
     }
 
@@ -841,11 +877,13 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       animatePanelToClosed();
       setOpen(false, "drag");
     } else {
+      setBackdropOpenOpacity(1);
       animatePanelToOpen();
     }
 
     dragOffsetY = 0;
     dragStartY = 0;
+    dragPanelHeight = 0;
   };
 
   backdrop.addEventListener("click", handleBackdropClick);

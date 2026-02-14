@@ -7,6 +7,27 @@ const flush = async () => {
   await Promise.resolve();
 };
 
+type TouchPoint = {
+  identifier: number;
+  clientY: number;
+};
+
+const dispatchTouchEvent = (
+  target: EventTarget,
+  type: string,
+  touches: TouchPoint[],
+) => {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: true,
+  }) as TouchEvent;
+  Object.defineProperty(event, "touches", {
+    configurable: true,
+    value: touches,
+  });
+  target.dispatchEvent(event);
+};
+
 describe("createSheet close icon behavior", () => {
   it("renders built-in SVG icon when closeIcon is not provided", async () => {
     const sheet = createSheet({
@@ -129,6 +150,53 @@ describe("createSheet close icon behavior", () => {
     expect(state.val).toBe(true);
     expect(onOpenChange).not.toHaveBeenCalledWith(false, "backdrop");
     expect(onOpenChange).not.toHaveBeenCalledWith(false, "escape");
+
+    sheet.destroy();
+  });
+
+  it("undims backdrop in proportion to drag distance", async () => {
+    const state = van.state(true);
+    const sheet = createSheet({
+      isOpen: state,
+      content: "content",
+    });
+
+    await flush();
+
+    const panel = sheet.element.querySelector<HTMLElement>(".vsheet-panel");
+    expect(panel).not.toBeNull();
+    vi.spyOn(panel as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 400,
+      width: 300,
+      height: 400,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    dispatchTouchEvent(panel as HTMLElement, "touchstart", [
+      { identifier: 1, clientY: 100 },
+    ]);
+    dispatchTouchEvent(panel as HTMLElement, "touchmove", [
+      { identifier: 1, clientY: 300 },
+    ]);
+
+    expect(
+      Number(
+        sheet.element.style.getPropertyValue("--vsheet-backdrop-open-opacity"),
+      ),
+    ).toBeCloseTo(0.5, 5);
+
+    dispatchTouchEvent(panel as HTMLElement, "touchend", []);
+    await flush();
+
+    expect(state.val).toBe(false);
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-backdrop-open-opacity"),
+    ).toBe("");
 
     sheet.destroy();
   });
