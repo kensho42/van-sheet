@@ -103,12 +103,6 @@
   min-height: 0;
 }
 
-.vsheet-root[data-keyboard-open="true"]
-  .vsheet-section[data-vsheet-scroll="false"] {
-  flex-shrink: 1;
-  overflow-y: auto;
-}
-
 .vsheet-close {
   display: grid;
   place-items: center;

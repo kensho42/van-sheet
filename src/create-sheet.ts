@@ -231,7 +231,6 @@ const findScrollableAncestor = (
 
 export const createSheet = (options: SheetOptions): SheetInstance => {
   const resolvedSections = normalizeSections(options);
-  const hasFixedSections = resolvedSections.some(({ scroll }) => !scroll);
   const dismissible = options.dismissible ?? true;
   const closeOnBackdrop = options.closeOnBackdrop ?? true;
   const closeOnEscape = options.closeOnEscape ?? true;
@@ -452,6 +451,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     root.style.removeProperty("--vsheet-content-extra-bottom");
     root.style.removeProperty("--vsheet-sections-extra-bottom");
     root.style.removeProperty("--vsheet-root-offset-y");
+    panel.style.removeProperty("bottom");
     delete root.dataset.keyboardOpen;
     baseMobileViewportHeight = 0;
     cachedNaturalPanelHeight = 0;
@@ -831,7 +831,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     const keyboardHeight = getDetectedKeyboardHeight();
-    const viewportOffsetTop = getViewportOffsetTop();
+    const viewportOffsetTop = keyboardHeight > 0 ? getViewportOffsetTop() : 0;
     const basePanelHeight = Math.round(
       baseMobileViewportHeight * MOBILE_SHEET_HEIGHT_RATIO,
     );
@@ -840,8 +840,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       adjustableHeight && adjustableTrackingReady
         ? Math.min(maxPanelHeight, getNaturalPanelHeight())
         : maxPanelHeight;
-    const contentExtraBottom = hasFixedSections ? 0 : keyboardHeight;
-    const sectionsExtraBottom = hasFixedSections ? keyboardHeight : 0;
+    const panelBottomInset = keyboardHeight + viewportOffsetTop;
+    const contentExtraBottom = 0;
+    const sectionsExtraBottom = 0;
 
     root.style.setProperty("--vsheet-mobile-height", `${panelHeight}px`);
     root.style.setProperty("--vsheet-keyboard-height", `${keyboardHeight}px`);
@@ -854,6 +855,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       `${sectionsExtraBottom}px`,
     );
     root.style.setProperty("--vsheet-root-offset-y", `${viewportOffsetTop}px`);
+    panel.style.bottom = `${panelBottomInset}px`;
     if (keyboardHeight > 0) {
       root.dataset.keyboardOpen = "true";
       scheduleFocusedElementIntoView();

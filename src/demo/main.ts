@@ -96,9 +96,6 @@ const keyboardProbeSections = (): SheetSection[] => [
   {
     className: "demo-keyboard-fixed demo-keyboard-fixed-top",
     content: div(
-      strong("Fixed Header Block"),
-      p("This top section is intentionally non-scrollable by config."),
-      p("Focus inputs to validate fixed sections can still adapt to keyboard."),
       input({
         type: "text",
         placeholder: "Header input (fixed section)",
