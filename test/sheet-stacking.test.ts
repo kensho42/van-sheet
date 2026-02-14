@@ -9,6 +9,7 @@ const flush = async () => {
 
 type TouchPoint = {
   identifier: number;
+  clientX?: number;
   clientY: number;
 };
 
@@ -23,7 +24,7 @@ const dispatchTouchEvent = (
   }) as TouchEvent;
   Object.defineProperty(event, "touches", {
     configurable: true,
-    value: touches,
+    value: touches.map((touch) => ({ clientX: 0, ...touch })),
   });
   target.dispatchEvent(event);
 };

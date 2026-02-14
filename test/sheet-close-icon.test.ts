@@ -9,6 +9,7 @@ const flush = async () => {
 
 type TouchPoint = {
   identifier: number;
+  clientX?: number;
   clientY: number;
 };
 
@@ -23,7 +24,7 @@ const dispatchTouchEvent = (
   }) as TouchEvent;
   Object.defineProperty(event, "touches", {
     configurable: true,
-    value: touches,
+    value: touches.map((touch) => ({ clientX: 0, ...touch })),
   });
   target.dispatchEvent(event);
 };
@@ -241,6 +242,153 @@ describe("createSheet close icon behavior", () => {
     expect(
       sheet.element.style.getPropertyValue("--vsheet-backdrop-open-opacity"),
     ).toBe("");
+
+    sheet.destroy();
+  });
+
+  it("blocks drag close after horizontal movement starts in default blocked zone", async () => {
+    const state = van.state(true);
+    const blockedZone = document.createElement("div");
+    blockedZone.dataset.vsheetDragBlock = "true";
+    blockedZone.textContent = "horizontal carousel";
+
+    const sheet = createSheet({
+      isOpen: state,
+      content: blockedZone,
+    });
+
+    await flush();
+
+    dispatchTouchEvent(blockedZone, "touchstart", [
+      { identifier: 1, clientX: 100, clientY: 100 },
+    ]);
+    dispatchTouchEvent(blockedZone, "touchmove", [
+      { identifier: 1, clientX: 190, clientY: 110 },
+    ]);
+    dispatchTouchEvent(blockedZone, "touchmove", [
+      { identifier: 1, clientX: 190, clientY: 320 },
+    ]);
+    dispatchTouchEvent(blockedZone, "touchend", []);
+    await flush();
+
+    expect(state.val).toBe(true);
+
+    sheet.destroy();
+  });
+
+  it("allows drag close when touch starts outside blocked zone", async () => {
+    const state = van.state(true);
+    const content = document.createElement("div");
+    content.innerHTML =
+      "<div data-vsheet-drag-block>blocked</div><div>free</div>";
+
+    const sheet = createSheet({
+      isOpen: state,
+      content,
+    });
+
+    await flush();
+
+    const panel = sheet.element.querySelector<HTMLElement>(".vsheet-panel");
+    expect(panel).not.toBeNull();
+
+    dispatchTouchEvent(panel as HTMLElement, "touchstart", [
+      { identifier: 1, clientY: 100 },
+    ]);
+    dispatchTouchEvent(panel as HTMLElement, "touchmove", [
+      { identifier: 1, clientY: 320 },
+    ]);
+    dispatchTouchEvent(panel as HTMLElement, "touchend", []);
+    await flush();
+
+    expect(state.val).toBe(false);
+
+    sheet.destroy();
+  });
+
+  it("supports custom dragStartBlockSelector", async () => {
+    const state = van.state(true);
+    const customBlockedZone = document.createElement("div");
+    customBlockedZone.className = "carousel-track";
+    customBlockedZone.textContent = "custom blocker";
+
+    const sheet = createSheet({
+      isOpen: state,
+      content: customBlockedZone,
+      dragStartBlockSelector: ".carousel-track",
+    });
+
+    await flush();
+
+    dispatchTouchEvent(customBlockedZone, "touchstart", [
+      { identifier: 1, clientX: 110, clientY: 100 },
+    ]);
+    dispatchTouchEvent(customBlockedZone, "touchmove", [
+      { identifier: 1, clientX: 210, clientY: 108 },
+    ]);
+    dispatchTouchEvent(customBlockedZone, "touchmove", [
+      { identifier: 1, clientX: 210, clientY: 320 },
+    ]);
+    dispatchTouchEvent(customBlockedZone, "touchend", []);
+    await flush();
+
+    expect(state.val).toBe(true);
+
+    sheet.destroy();
+  });
+
+  it("allows vertical drag close from a blocked zone when horizontal gesture does not start", async () => {
+    const state = van.state(true);
+    const blockedZone = document.createElement("div");
+    blockedZone.dataset.vsheetDragBlock = "true";
+    blockedZone.textContent = "vertical drag remains allowed";
+
+    const sheet = createSheet({
+      isOpen: state,
+      content: blockedZone,
+    });
+
+    await flush();
+
+    dispatchTouchEvent(blockedZone, "touchstart", [
+      { identifier: 1, clientX: 120, clientY: 100 },
+    ]);
+    dispatchTouchEvent(blockedZone, "touchmove", [
+      { identifier: 1, clientX: 124, clientY: 320 },
+    ]);
+    dispatchTouchEvent(blockedZone, "touchend", []);
+    await flush();
+
+    expect(state.val).toBe(false);
+
+    sheet.destroy();
+  });
+
+  it("does not block drag when matched element is outside scroll section", async () => {
+    const state = van.state(true);
+    const fixedTop = document.createElement("div");
+    fixedTop.dataset.vsheetDragBlock = "true";
+    fixedTop.textContent = "fixed top";
+    const middle = document.createElement("div");
+    middle.textContent = "scrollable middle";
+
+    const sheet = createSheet({
+      isOpen: state,
+      sections: [{ content: fixedTop }, { content: middle, scroll: true }],
+    });
+
+    await flush();
+
+    dispatchTouchEvent(fixedTop, "touchstart", [
+      { identifier: 1, clientY: 100 },
+    ]);
+    dispatchTouchEvent(fixedTop, "touchmove", [
+      { identifier: 1, clientY: 320 },
+    ]);
+    dispatchTouchEvent(fixedTop, "touchend", []);
+    await flush();
+
+    expect(state.val).toBe(false);
 
     sheet.destroy();
   });

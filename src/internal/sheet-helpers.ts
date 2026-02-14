@@ -100,3 +100,24 @@ export const findScrollableAncestor = (
 
   return null;
 };
+
+export const findClosestMatchingAncestor = (
+  target: EventTarget | null,
+  stopAt: HTMLElement,
+  selector: string,
+): HTMLElement | null => {
+  if (!(target instanceof HTMLElement) || selector.trim() === "") {
+    return null;
+  }
+
+  let node: HTMLElement | null = target;
+  while (node && node !== stopAt) {
+    if (node.matches(selector)) {
+      return node;
+    }
+
+    node = node.parentElement;
+  }
+
+  return null;
+};

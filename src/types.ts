@@ -24,6 +24,7 @@ export interface SheetOptions {
   isOpen: VanState<boolean>;
   content?: SheetRenderable;
   sections?: SheetSection[];
+  dragStartBlockSelector?: string;
   adjustableHeight?: boolean;
   floatingCloseButton?: boolean;
   closeIcon?: HTMLElement | (() => HTMLElement);

@@ -15,7 +15,8 @@ type DemoLayout =
   | "default"
   | "keyboard-probe"
   | "adjustable-height"
-  | "floating-media";
+  | "floating-media"
+  | "drag-start-guard";
 const latestOptionResult = van.state("No option submitted yet.");
 
 type DemoSectionActions = {
@@ -282,6 +283,92 @@ const floatingMediaSections = (
   },
 ];
 
+const dragStartGuardSections = (
+  mode: "mobile" | "desktop",
+  actions?: DemoSectionActions,
+): SheetSection[] => [
+  {
+    className: "demo-sheet-top",
+    content: div(
+      strong("Drag-Start Guard Demo"),
+      p(
+        "Horizontal swipe zones below block sheet pull-down after horizontal intent is detected.",
+      ),
+    ),
+  },
+  {
+    className: "demo-sheet-content",
+    scroll: true,
+    content: div(
+      { class: "demo-sheet-scroll demo-drag-guard-scroll" },
+      div(
+        { class: "row" },
+        strong("Try this"),
+        p(
+          "Swipe left/right in the highlighted lanes. Drag down from regular rows to close.",
+        ),
+      ),
+      div(
+        {
+          class: "demo-drag-carousel",
+          "data-vsheet-drag-block": "true",
+        },
+        ...Array.from({ length: 7 }, (_, i) =>
+          div({ class: "demo-drag-chip" }, `Default Block ${i + 1}`),
+        ),
+      ),
+      div(
+        { class: "demo-drag-custom-zone" },
+        ...Array.from({ length: 7 }, (_, i) =>
+          div({ class: "demo-drag-chip alt" }, `Custom Block ${i + 1}`),
+        ),
+      ),
+      ...Array.from({ length: 5 }, (_, i) =>
+        div(
+          { class: "row" },
+          strong(`Normal Row ${i + 1}`),
+          p("Start a downward drag here to verify drag-to-close still works."),
+        ),
+      ),
+      div(
+        { class: "row" },
+        strong(mode === "mobile" ? "Mobile Note" : "Desktop Note"),
+        p(
+          "This sheet uses both `[data-vsheet-drag-block]` and `dragStartBlockSelector`.",
+        ),
+      ),
+    ),
+  },
+  {
+    className: "demo-sheet-footer",
+    content:
+      mode === "desktop"
+        ? div(
+            { class: "demo-sheet-actions" },
+            button(
+              {
+                type: "button",
+                class: "secondary",
+                onclick: actions?.closeSheet ?? (() => {}),
+              },
+              "Close Drawer",
+            ),
+            button(
+              {
+                type: "button",
+                onclick: actions?.openAnotherSheet ?? (() => {}),
+              },
+              "Add Drawer",
+            ),
+          )
+        : div(
+            { class: "demo-sheet-actions" },
+            button({ type: "button", class: "secondary" }, "Cancel"),
+            button({ type: "button" }, "Confirm"),
+          ),
+  },
+];
+
 const destroySheetAfterCloseAnimation = (
   sheet: ReturnType<typeof createSheet>,
 ) => {
@@ -318,6 +405,10 @@ const resolveDemoSections = (
     return floatingMediaSections(mode, actions);
   }
 
+  if (layout === "drag-start-guard") {
+    return dragStartGuardSections(mode, actions);
+  }
+
   return demoSections(mode, actions);
 };
 
@@ -338,6 +429,8 @@ const openDemoSheet = (
       closeSheet,
       openAnotherSheet,
     }),
+    dragStartBlockSelector:
+      layout === "drag-start-guard" ? ".demo-drag-custom-zone" : undefined,
     adjustableHeight: layout === "adjustable-height",
     floatingCloseButton: layout === "floating-media",
     onOpenChange: (open) => {
@@ -556,6 +649,21 @@ const app = div(
           onclick: () => openStackBuilderDemo("mobile"),
         },
         "Open Stack Builder",
+      ),
+    ),
+    div(
+      { class: "demo-card" },
+      h2("Drag-Start Guard"),
+      p(
+        "Horizontal swipe lanes axis-lock drag-start after horizontal movement begins.",
+      ),
+      button(
+        {
+          type: "button",
+          class: "accent",
+          onclick: () => openDemoSheet("mobile", "drag-start-guard"),
+        },
+        "Open Drag-Start Guard Demo",
       ),
     ),
   ),

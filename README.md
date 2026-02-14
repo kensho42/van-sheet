@@ -101,7 +101,33 @@ createSheet({
 });
 ```
 
-### Pattern C: Promise-based option selector
+### Pattern C: Horizontal scroll zone that blocks sheet drag-start
+
+```ts
+const { div } = van.tags;
+
+createSheet({
+  isOpen,
+  dragStartBlockSelector: ".carousel",
+  sections: [
+    {
+      scroll: true,
+      content: div(
+        { class: "sheet-content" },
+        div(
+          {
+            class: "carousel",
+            "data-vsheet-drag-block": "true",
+          },
+          "Horizontally swipeable cards here",
+        ),
+      ),
+    },
+  ],
+});
+```
+
+### Pattern D: Promise-based option selector
 
 ```ts
 import van from "vanjs-core";
@@ -155,7 +181,7 @@ const openOptionSheet = (): Promise<Option | null> =>
   });
 ```
 
-### Pattern D: Floating close with top-starting content
+### Pattern E: Floating close with top-starting content
 
 ```ts
 createSheet({
@@ -193,6 +219,7 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 | `isOpen` | `VanState<boolean>` | required | Source of truth for open/close state. |
 | `content` | `SheetRenderable` | `undefined` | Use for single-scroll-content mode. |
 | `sections` | `SheetSection[]` | `undefined` | Use for fixed/scroll/fixed layouts. |
+| `dragStartBlockSelector` | `string` | `undefined` | Additional selector for zones that should block sheet drag after a horizontal gesture begins. Additive with `[data-vsheet-drag-block]`. |
 | `adjustableHeight` | `boolean` | `false` | Mobile-only. Fits to content height up to the 95% mobile cap. |
 | `floatingCloseButton` | `boolean` | `false` | Overlays the close button above content while allowing content to start at panel top. |
 | `closeIcon` | `HTMLElement \| (() => HTMLElement)` | built-in icon | Custom close icon element/factory. |
@@ -275,6 +302,7 @@ Example:
 - Backdrop and close button are semantic `button` elements with labels.
 - Keyboard dismissal is available via `Escape` and can be disabled with `closeOnEscape: false`.
 - Touch drag-to-close is active on mobile viewport conditions and closes when downward drag passes the threshold.
+- In `[data-vsheet-drag-block]` zones (and any `dragStartBlockSelector` matches) inside the scroll section, sheet drag is blocked after horizontal gesture intent is detected.
 - When multiple sheets are open, only the topmost sheet is interactive (`Escape`, backdrop click, and drag close).
 - While dragging the top sheet, background stack layers animate in sync to preview the next layer.
 

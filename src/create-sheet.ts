@@ -1,5 +1,6 @@
 import van from "vanjs-core";
 import {
+  findClosestMatchingAncestor,
   findScrollableAncestor,
   normalizeSections,
   resolveCloseIcon,
@@ -29,6 +30,8 @@ const PANEL_TRANSITION_FALLBACK_MS = 550;
 const STACK_OFFSET_STEP_PX = 12;
 const STACK_SCALE_STEP = 0.04;
 const STACK_MIN_SCALE = 0.72;
+const DEFAULT_DRAG_START_BLOCK_SELECTOR = "[data-vsheet-drag-block]";
+const DRAG_START_AXIS_LOCK_PX = 8;
 
 export const createSheet = (options: SheetOptions): SheetInstance => {
   const resolvedSections = normalizeSections(options);
@@ -39,6 +42,12 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const showCloseButton = options.showCloseButton ?? true;
   const adjustableHeight = options.adjustableHeight ?? false;
   const floatingCloseButton = options.floatingCloseButton ?? false;
+  const resolvedDragStartBlockSelector = [
+    DEFAULT_DRAG_START_BLOCK_SELECTOR,
+    options.dragStartBlockSelector?.trim() ?? "",
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const closeButton = button(
     {
@@ -120,11 +129,14 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
   let pendingReason: SheetReason = "api";
   let previousOpen = options.isOpen.val;
+  let dragStartX = 0;
   let dragStartY = 0;
   let dragOffsetY = 0;
   let dragPanelHeight = 0;
   let isTouchTracking = false;
   let isDragging = false;
+  let isHorizontalGestureBlocked = false;
+  let dragStartBlockTarget: HTMLElement | null = null;
   let activeDragTouchId: number | null = null;
   let baseMobileViewportHeight = 0;
   let stopViewportTracking: (() => void) | null = null;
@@ -926,6 +938,16 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       return;
     }
 
+    const blockedDragStartTarget = findClosestMatchingAncestor(
+      event.target,
+      panel,
+      resolvedDragStartBlockSelector,
+    );
+    dragStartBlockTarget =
+      blockedDragStartTarget && scrollContent.contains(blockedDragStartTarget)
+        ? blockedDragStartTarget
+        : null;
+
     const scrollableAncestor = findScrollableAncestor(event.target, panel);
     if (scrollableAncestor && scrollableAncestor.scrollTop > 0) {
       return;
@@ -933,9 +955,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     isTouchTracking = true;
     activeDragTouchId = touch.identifier;
+    dragStartX = touch.clientX;
     dragStartY = touch.clientY;
     dragOffsetY = 0;
     dragPanelHeight = panel.getBoundingClientRect().height;
+    isHorizontalGestureBlocked = false;
     isDragging = false;
     clearSheetStackDragProgress(stackParticipantId);
   };
@@ -952,7 +976,27 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       return;
     }
 
+    const deltaX = touch.clientX - dragStartX;
     const deltaY = touch.clientY - dragStartY;
+    if (dragStartBlockTarget && !isHorizontalGestureBlocked) {
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+      if (Math.max(absDeltaX, absDeltaY) < DRAG_START_AXIS_LOCK_PX) {
+        return;
+      }
+
+      if (absDeltaX > absDeltaY) {
+        isHorizontalGestureBlocked = true;
+        return;
+      }
+
+      dragStartBlockTarget = null;
+    }
+
+    if (isHorizontalGestureBlocked) {
+      return;
+    }
+
     if (deltaY <= 0) {
       if (isDragging) {
         dragOffsetY = 0;
@@ -989,8 +1033,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     if (!isDragging) {
       dragOffsetY = 0;
+      dragStartX = 0;
       dragStartY = 0;
       dragPanelHeight = 0;
+      isHorizontalGestureBlocked = false;
+      dragStartBlockTarget = null;
       clearSheetStackDragProgress(stackParticipantId);
       return;
     }
@@ -1008,8 +1055,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     dragOffsetY = 0;
+    dragStartX = 0;
     dragStartY = 0;
     dragPanelHeight = 0;
+    isHorizontalGestureBlocked = false;
+    dragStartBlockTarget = null;
   };
 
   backdrop.addEventListener("click", handleBackdropClick);

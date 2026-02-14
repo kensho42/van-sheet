@@ -258,6 +258,39 @@ body {
   background: linear-gradient(135deg, #188c6f 0%, #1ead90 100%);
 }
 
+.demo-drag-guard-scroll {
+  gap: 0.65rem;
+}
+
+.demo-drag-carousel,
+.demo-drag-custom-zone {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(120px, 150px);
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding: 0.25rem 0.15rem 0.5rem;
+  touch-action: pan-x;
+}
+
+.demo-drag-chip {
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #b7dbff;
+  background: linear-gradient(140deg, #e5f4ff 0%, #d8eeff 100%);
+  color: #154065;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.demo-drag-chip.alt {
+  border-color: #b7eadf;
+  background: linear-gradient(140deg, #e5fbf4 0%, #d8f6eb 100%);
+  color: #0e5f4b;
+}
+
 .demo-floating-media-content {
   padding: 0;
 }
