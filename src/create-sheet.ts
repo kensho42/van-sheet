@@ -767,11 +767,15 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     const touch = event.touches[0];
     const target = event.target;
+    const interactiveTarget =
+      target instanceof HTMLElement
+        ? target.closest<HTMLElement>(
+            "button, a, input, textarea, select, summary, [contenteditable='true']",
+          )
+        : null;
     if (
-      target instanceof HTMLElement &&
-      target.closest(
-        "button, a, input, textarea, select, summary, [contenteditable='true']",
-      )
+      interactiveTarget &&
+      !interactiveTarget.classList.contains("vsheet-backdrop")
     ) {
       return;
     }
@@ -847,10 +851,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   backdrop.addEventListener("click", handleBackdropClick);
   closeButton.addEventListener("click", handleCloseButtonClick);
   document.addEventListener("keydown", handleEscape);
-  panel.addEventListener("touchstart", handleTouchStart, { passive: true });
-  panel.addEventListener("touchmove", handleTouchMove, { passive: false });
-  panel.addEventListener("touchend", handleTouchEnd, { passive: true });
-  panel.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+  root.addEventListener("touchstart", handleTouchStart, { passive: true });
+  root.addEventListener("touchmove", handleTouchMove, { passive: false });
+  root.addEventListener("touchend", handleTouchEnd, { passive: true });
+  root.addEventListener("touchcancel", handleTouchEnd, { passive: true });
   panel.addEventListener("focusin", handleFocusIn);
 
   syncOpenState(previousOpen);
@@ -890,10 +894,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       backdrop.removeEventListener("click", handleBackdropClick);
       closeButton.removeEventListener("click", handleCloseButtonClick);
       document.removeEventListener("keydown", handleEscape);
-      panel.removeEventListener("touchstart", handleTouchStart);
-      panel.removeEventListener("touchmove", handleTouchMove);
-      panel.removeEventListener("touchend", handleTouchEnd);
-      panel.removeEventListener("touchcancel", handleTouchEnd);
+      root.removeEventListener("touchstart", handleTouchStart);
+      root.removeEventListener("touchmove", handleTouchMove);
+      root.removeEventListener("touchend", handleTouchEnd);
+      root.removeEventListener("touchcancel", handleTouchEnd);
       panel.removeEventListener("focusin", handleFocusIn);
       root.remove();
     },
