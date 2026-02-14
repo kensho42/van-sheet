@@ -260,6 +260,26 @@ describe("createSheet mobile height snapshot", () => {
     sheet.destroy();
   });
 
+  it("applies mobile height updates when floating close button is enabled", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+      floatingCloseButton: true,
+    });
+
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+    expect(sheet.element.dataset.floatingCloseButton).toBe("true");
+
+    sheet.destroy();
+  });
+
   it("does not apply mobile sheet height on desktop viewports", async () => {
     setInnerHeight(1000);
     setMatchMedia(false);

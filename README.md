@@ -10,6 +10,7 @@
 - Simple `content` mode or structured `sections` mode with one scrollable region.
 - Mobile keyboard-aware viewport handling.
 - Optional content-fit mobile height (`adjustableHeight`) capped to 95% viewport.
+- Optional floating close button overlay (`floatingCloseButton`).
 - Custom close icon support.
 - CSS variables for theme and layout control.
 
@@ -154,6 +155,21 @@ const openOptionSheet = (): Promise<Option | null> =>
   });
 ```
 
+### Pattern D: Floating close with top-starting content
+
+```ts
+createSheet({
+  isOpen,
+  floatingCloseButton: true,
+  sections: [
+    {
+      scroll: true,
+      content: "Top media/avatar can start at y=0 while close button floats.",
+    },
+  ],
+});
+```
+
 ## Public API
 
 Exports from `src/index.ts`:
@@ -178,6 +194,7 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 | `content` | `SheetRenderable` | `undefined` | Use for single-scroll-content mode. |
 | `sections` | `SheetSection[]` | `undefined` | Use for fixed/scroll/fixed layouts. |
 | `adjustableHeight` | `boolean` | `false` | Mobile-only. Fits to content height up to the 95% mobile cap. |
+| `floatingCloseButton` | `boolean` | `false` | Overlays the close button above content while allowing content to start at panel top. |
 | `closeIcon` | `HTMLElement \| (() => HTMLElement)` | built-in icon | Custom close icon element/factory. |
 | `mountTo` | `HTMLElement \| string` | `document.body` | Selector fallback is `document.body` if no match. |
 | `dismissible` | `boolean` | `true` | Prevent non-API closing when `false`. |
@@ -221,6 +238,12 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 - Sheet height follows content and animates height changes while open.
 - Max height remains capped at the existing 95% mobile limit (keyboard adjustments still apply).
 - When content exceeds the cap, overflow remains in the scroll section.
+
+### Floating close button
+
+- Enable with `floatingCloseButton: true`.
+- Close icon stays overlaid and clickable above content.
+- No top inset is reserved automatically; content can render directly underneath.
 
 ## Styling and Theming
 

@@ -25,6 +25,7 @@ export interface SheetOptions {
   content?: SheetRenderable;
   sections?: SheetSection[];
   adjustableHeight?: boolean;
+  floatingCloseButton?: boolean;
   closeIcon?: HTMLElement | (() => HTMLElement);
   mountTo?: HTMLElement | string;
   dismissible?: boolean;

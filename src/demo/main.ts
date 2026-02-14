@@ -1,16 +1,21 @@
 import van from "vanjs-core";
 import { createSheet } from "../create-sheet";
 import type { SheetSection } from "../types";
+import floatingCloseFoodImage from "./assets/floating-close-food.png";
 import { openOptionSheet } from "./open-option-sheet";
 import "../style.css";
 import "./demo.css";
 
-const { button, div, h1, h2, input, p, strong } = van.tags;
+const { button, div, h1, h2, img, input, p, strong } = van.tags;
 
 const EXIT_ANIMATION_FALLBACK_MS = 550;
 const ADJUSTABLE_OPEN_DELAY_MS = 20;
 
-type DemoLayout = "default" | "keyboard-probe" | "adjustable-height";
+type DemoLayout =
+  | "default"
+  | "keyboard-probe"
+  | "adjustable-height"
+  | "floating-media";
 const latestOptionResult = van.state("No option submitted yet.");
 
 type DemoSectionActions = {
@@ -210,6 +215,73 @@ const adjustableHeightSections = (): SheetSection[] => {
   ];
 };
 
+const floatingMediaSections = (
+  mode: "mobile" | "desktop",
+  actions?: DemoSectionActions,
+): SheetSection[] => [
+  {
+    className: "demo-floating-media-content",
+    scroll: true,
+    content: div(
+      { class: "demo-floating-scroll" },
+      img({
+        class: "demo-floating-image",
+        src: floatingCloseFoodImage,
+        alt: "Cheesy skillet dish with herbs and toast.",
+      }),
+      div(
+        { class: "row demo-floating-profile" },
+        strong(mode === "mobile" ? "Chef Aria Lane" : "Featured Kitchen"),
+        p(
+          "Floating close button stays above content while the hero media starts at the top edge.",
+        ),
+      ),
+      ...Array.from({ length: 6 }, (_, i) =>
+        div(
+          { class: "row" },
+          strong(`Post ${i + 1}`),
+          p("Feed-style content to validate top-aligned media and scrolling."),
+        ),
+      ),
+    ),
+  },
+  {
+    className: "demo-floating-media-footer",
+    content:
+      mode === "desktop"
+        ? div(
+            { class: "demo-sheet-actions" },
+            button(
+              {
+                type: "button",
+                class: "secondary",
+                onclick: actions?.closeSheet ?? (() => {}),
+              },
+              "Close Drawer",
+            ),
+            button(
+              {
+                type: "button",
+                onclick: actions?.openAnotherSheet ?? (() => {}),
+              },
+              "Add Drawer",
+            ),
+          )
+        : div(
+            { class: "demo-sheet-actions" },
+            button(
+              {
+                type: "button",
+                class: "secondary",
+                onclick: actions?.closeSheet ?? (() => {}),
+              },
+              "Dismiss",
+            ),
+            button({ type: "button" }, "Follow"),
+          ),
+  },
+];
+
 const destroySheetAfterCloseAnimation = (
   sheet: ReturnType<typeof createSheet>,
 ) => {
@@ -242,6 +314,10 @@ const resolveDemoSections = (
     return keyboardProbeSections();
   }
 
+  if (layout === "floating-media") {
+    return floatingMediaSections(mode, actions);
+  }
+
   return demoSections(mode, actions);
 };
 
@@ -263,6 +339,7 @@ const openDemoSheet = (
       openAnotherSheet,
     }),
     adjustableHeight: layout === "adjustable-height",
+    floatingCloseButton: layout === "floating-media",
     onOpenChange: (open) => {
       if (!open) {
         destroySheetAfterCloseAnimation(sheet);
@@ -451,6 +528,21 @@ const app = div(
           onclick: () => openDemoSheet("mobile", "adjustable-height"),
         },
         "Open Adjustable Height Demo",
+      ),
+    ),
+    div(
+      { class: "demo-card" },
+      h2("Floating Close + Media"),
+      p(
+        "Shows top-starting media content while the close button floats above it.",
+      ),
+      button(
+        {
+          type: "button",
+          class: "accent",
+          onclick: () => openDemoSheet("mobile", "floating-media"),
+        },
+        "Open Floating Media Demo",
       ),
     ),
     div(

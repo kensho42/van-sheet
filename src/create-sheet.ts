@@ -38,6 +38,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const showBackdrop = options.showBackdrop ?? true;
   const showCloseButton = options.showCloseButton ?? true;
   const adjustableHeight = options.adjustableHeight ?? false;
+  const floatingCloseButton = options.floatingCloseButton ?? false;
 
   const closeButton = button(
     {
@@ -115,6 +116,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       delete root.dataset[key];
     }
   };
+  setRootDatasetFlag("floatingCloseButton", floatingCloseButton);
 
   let pendingReason: SheetReason = "api";
   let previousOpen = options.isOpen.val;

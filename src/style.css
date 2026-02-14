@@ -90,6 +90,19 @@
   padding: 12px;
 }
 
+.vsheet-root[data-floating-close-button="true"] .vsheet-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.vsheet-root[data-floating-close-button="true"] .vsheet-close {
+  pointer-events: auto;
+}
+
 .vsheet-sections {
   display: flex;
   flex: 1 1 auto;

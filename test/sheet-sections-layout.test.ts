@@ -105,4 +105,32 @@ describe("createSheet sections layout", () => {
       }),
     ).toThrowError(/exactly one section with `scroll: true`; received 2/);
   });
+
+  it("keeps section ordering and header presence when floating close button is enabled", async () => {
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      floatingCloseButton: true,
+      sections: [
+        { content: "top" },
+        { content: "middle", scroll: true },
+        { content: "bottom" },
+      ],
+    });
+
+    await flush();
+
+    const header = sheet.element.querySelector<HTMLElement>(".vsheet-header");
+    expect(header).not.toBeNull();
+    expect(sheet.element.dataset.floatingCloseButton).toBe("true");
+
+    const sections = Array.from(
+      sheet.element.querySelectorAll<HTMLElement>(".vsheet-section"),
+    );
+    expect(sections).toHaveLength(3);
+    expect(sections[0].dataset.vsheetScroll).toBe("false");
+    expect(sections[1].dataset.vsheetScroll).toBe("true");
+    expect(sections[2].dataset.vsheetScroll).toBe("false");
+
+    sheet.destroy();
+  });
 });

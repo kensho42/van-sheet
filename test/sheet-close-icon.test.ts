@@ -89,6 +89,50 @@ describe("createSheet close icon behavior", () => {
     sheet.destroy();
   });
 
+  it("keeps close-button dismissal behavior when floating close button is enabled", async () => {
+    const reasons: SheetReason[] = [];
+    const state = van.state(true);
+    const sheet = createSheet({
+      isOpen: state,
+      content: "content",
+      floatingCloseButton: true,
+      onOpenChange: (open, reason) => {
+        if (!open) {
+          reasons.push(reason);
+        }
+      },
+    });
+
+    await flush();
+
+    expect(sheet.element.dataset.floatingCloseButton).toBe("true");
+    const closeButton =
+      sheet.element.querySelector<HTMLButtonElement>(".vsheet-close");
+    closeButton?.click();
+    await flush();
+    expect(state.val).toBe(false);
+    expect(reasons).toEqual(["close-button"]);
+
+    sheet.destroy();
+  });
+
+  it("keeps close button hidden in floating mode when showCloseButton is false", async () => {
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+      floatingCloseButton: true,
+      showCloseButton: false,
+    });
+
+    await flush();
+
+    const closeButton =
+      sheet.element.querySelector<HTMLButtonElement>(".vsheet-close");
+    expect(closeButton?.hidden).toBe(true);
+
+    sheet.destroy();
+  });
+
   it("keeps close interactions intact for backdrop, escape, and button", async () => {
     const reasons: SheetReason[] = [];
     const state = van.state(true);
