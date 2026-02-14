@@ -483,6 +483,52 @@ describe("createSheet mobile height snapshot", () => {
 
     sheet.destroy();
   });
+
+  it("shrinks with Safari toolbar restoration without triggering keyboard mode", async () => {
+    setInnerHeight(900);
+    setMatchMedia(true);
+    const visualViewport = createVisualViewportMock(900, 0);
+    setVisualViewport(visualViewport);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+    });
+
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "855px",
+    );
+
+    setInnerHeight(1000);
+    visualViewport.height = 1000;
+    visualViewport.emit("resize");
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+
+    setInnerHeight(900);
+    visualViewport.height = 900;
+    visualViewport.emit("resize");
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "855px",
+    );
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-keyboard-height"),
+    ).toBe("0px");
+    expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
+      "0px",
+    );
+    const panel = sheet.element.querySelector<HTMLElement>(".vsheet-panel");
+    expect(panel?.style.bottom).toBe("0px");
+    expect(sheet.element.dataset.keyboardOpen).toBeUndefined();
+
+    sheet.destroy();
+  });
 });
 
 describe("createSheet adjustable mobile height", () => {

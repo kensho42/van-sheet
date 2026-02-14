@@ -145,7 +145,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let activeScrollTouchId: number | null = null;
   let lastScrollTouchX = 0;
   let lastScrollTouchY = 0;
-  let baseMobileViewportHeight = 0;
   let stopViewportTracking: (() => void) | null = null;
   let scheduledMobileHeightUpdateRaf: number | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -314,7 +313,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     root.style.removeProperty("--vsheet-root-offset-y");
     panel.style.removeProperty("bottom");
     setRootDatasetFlag("keyboardOpen", false);
-    baseMobileViewportHeight = 0;
     cachedNaturalPanelHeight = 0;
     naturalPanelHeightDirty = true;
     lastMeasuredScrollContentWidth = 0;
@@ -553,9 +551,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     const visibleViewportBottom = viewport.height + viewport.offsetTop;
+    const layoutViewportHeight = getLayoutViewportHeight();
     const keyboardHeight = Math.max(
       0,
-      Math.round(baseMobileViewportHeight - visibleViewportBottom),
+      Math.round(layoutViewportHeight - visibleViewportBottom),
     );
     return keyboardHeight <= KEYBOARD_CLOSED_EPSILON_PX ? 0 : keyboardHeight;
   };
@@ -654,19 +653,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       return;
     }
 
-    if (baseMobileViewportHeight === 0) {
-      baseMobileViewportHeight = getLayoutViewportHeight();
-    }
-
     const currentLayoutHeight = getLayoutViewportHeight();
-    if (currentLayoutHeight > baseMobileViewportHeight) {
-      baseMobileViewportHeight = currentLayoutHeight;
-    }
-
     const keyboardHeight = getDetectedKeyboardHeight();
     const viewportOffsetTop = keyboardHeight > 0 ? getViewportOffsetTop() : 0;
     const basePanelHeight = Math.round(
-      baseMobileViewportHeight * MOBILE_SHEET_HEIGHT_RATIO,
+      currentLayoutHeight * MOBILE_SHEET_HEIGHT_RATIO,
     );
     const maxPanelHeight = Math.max(0, basePanelHeight - keyboardHeight);
     const panelHeight =
