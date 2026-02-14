@@ -5,5 +5,7 @@ export type {
   SheetInstance,
   SheetOptions,
   SheetReason,
+  SheetRenderable,
+  SheetSection,
   VanState,
 } from "./types";

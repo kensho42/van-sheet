@@ -52,6 +52,17 @@
   padding: 12px;
 }
 
+.vsheet-sections {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.vsheet-section {
+  flex: 0 0 auto;
+}
+
 .vsheet-close {
   display: grid;
   place-items: center;

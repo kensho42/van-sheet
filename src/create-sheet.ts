@@ -1,6 +1,12 @@
 import van from "vanjs-core";
 import { createDefaultCloseIcon } from "./internal/icons";
-import type { SheetInstance, SheetOptions, SheetReason } from "./types";
+import type {
+  SheetInstance,
+  SheetOptions,
+  SheetReason,
+  SheetRenderable,
+  SheetSection,
+} from "./types";
 
 const { button, div, header, section } = van.tags;
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
@@ -21,11 +27,52 @@ const resolveMountTarget = (mountTo?: HTMLElement | string): HTMLElement => {
   return mountTo;
 };
 
-const resolveContent = (
-  content: HTMLElement | string | (() => HTMLElement | string),
-): HTMLElement | string => {
+const resolveContent = (content: SheetRenderable): HTMLElement | string => {
   const resolved = typeof content === "function" ? content() : content;
   return resolved;
+};
+
+const normalizeSections = (options: SheetOptions): SheetSection[] => {
+  const hasContent = options.content !== undefined;
+  const hasSections = options.sections !== undefined;
+
+  if (hasContent && hasSections) {
+    throw new Error(
+      "createSheet: provide either `content` or `sections`, not both.",
+    );
+  }
+
+  if (!hasContent && !hasSections) {
+    throw new Error("createSheet: provide `content` or `sections`.");
+  }
+
+  if (hasContent) {
+    return [{ content: options.content as SheetRenderable, scroll: true }];
+  }
+
+  const sections = options.sections as SheetSection[];
+  const scrollSectionCount = sections.filter(({ scroll }) => scroll).length;
+  if (scrollSectionCount !== 1) {
+    throw new Error(
+      `createSheet: \`sections\` must include exactly one section with \`scroll: true\`; received ${scrollSectionCount}.`,
+    );
+  }
+
+  return sections;
+};
+
+const resolveSectionClassName = (section: SheetSection): string => {
+  const classNames = ["vsheet-section"];
+  if (section.scroll) {
+    classNames.push("vsheet-content");
+  }
+
+  const customClassName = section.className?.trim();
+  if (customClassName) {
+    classNames.push(customClassName);
+  }
+
+  return classNames.join(" ");
 };
 
 const resolveCloseIcon = (
@@ -65,6 +112,7 @@ const findScrollableAncestor = (
 };
 
 export const createSheet = (options: SheetOptions): SheetInstance => {
+  const resolvedSections = normalizeSections(options);
   const dismissible = options.dismissible ?? true;
   const closeOnBackdrop = options.closeOnBackdrop ?? true;
   const closeOnEscape = options.closeOnEscape ?? true;
@@ -83,10 +131,33 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
   const headerElement = header({ class: "vsheet-header" }, closeButton);
 
-  const content = div(
-    { class: "vsheet-content" },
-    resolveContent(options.content),
+  let content: HTMLElement | null = null;
+  const sectionsElement = div(
+    { class: "vsheet-sections" },
+    ...resolvedSections.map((sheetSection, index) => {
+      const sectionElement = div(
+        {
+          class: resolveSectionClassName(sheetSection),
+          "data-vsheet-section-index": `${index}`,
+          "data-vsheet-scroll": sheetSection.scroll ? "true" : "false",
+        },
+        resolveContent(sheetSection.content),
+      );
+
+      if (sheetSection.scroll) {
+        content = sectionElement;
+      }
+
+      return sectionElement;
+    }),
   );
+
+  if (!content) {
+    throw new Error(
+      "createSheet: unable to resolve a scroll section from `sections`.",
+    );
+  }
+  const scrollContent = content;
 
   const panel = section(
     {
@@ -95,7 +166,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       "aria-modal": "true",
     },
     headerElement,
-    content,
+    sectionsElement,
   );
 
   const backdrop = button({
@@ -264,11 +335,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       return;
     }
 
-    if (!content.contains(activeElement)) {
+    if (!scrollContent.contains(activeElement)) {
       return;
     }
 
-    const contentRect = content.getBoundingClientRect();
+    const contentRect = scrollContent.getBoundingClientRect();
     const focusedRect = activeElement.getBoundingClientRect();
     const visibleViewportTop = getVisibleViewportTop();
     const visibleViewportBottom = getVisibleViewportBottom();
@@ -283,13 +354,13 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     const overflowBottom =
       focusedRect.bottom - (visibleContentBottom - bottomSafety);
     if (overflowBottom > 0) {
-      content.scrollTop += overflowBottom;
+      scrollContent.scrollTop += overflowBottom;
       return;
     }
 
     const overflowTop = visibleContentTop + topSafety - focusedRect.top;
     if (overflowTop > 0) {
-      content.scrollTop -= overflowTop;
+      scrollContent.scrollTop -= overflowTop;
     }
   };
 

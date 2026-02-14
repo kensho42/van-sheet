@@ -1,5 +1,6 @@
 import van from "vanjs-core";
 import { createSheet } from "../create-sheet";
+import type { SheetSection } from "../types";
 import { openOptionSheet } from "./open-option-sheet";
 import "../style.css";
 import "./demo.css";
@@ -23,43 +24,56 @@ const destroySheet = (entry: ActiveSheet) => {
   }
 };
 
-const demoContent = (mode: "mobile" | "desktop"): HTMLElement =>
-  div(
-    { class: "demo-sheet-content" },
-    div(
-      { class: "row" },
+const demoSections = (mode: "mobile" | "desktop"): SheetSection[] => [
+  {
+    className: "demo-sheet-top",
+    content: div(
       strong(mode === "mobile" ? "Mobile Sheet" : "Desktop Drawer"),
       p(
         mode === "mobile"
-          ? "This variant opens from the bottom for phone interactions."
-          : "This variant opens from the right to mimic desktop behavior.",
+          ? "Fixed top section. The middle content can scroll independently."
+          : "Fixed top section. This desktop variant still keeps scroll in the middle section.",
       ),
     ),
-    div(
-      { class: "row" },
-      strong("Scrollable Content"),
-      p(
-        "Use this section to validate internal scrolling and sheet boundaries.",
+  },
+  {
+    className: "demo-sheet-content",
+    scroll: true,
+    content: div(
+      { class: "demo-sheet-scroll" },
+      div(
+        { class: "row" },
+        strong("Scrollable Content"),
+        p("Use this middle section to validate internal scrolling behavior."),
       ),
-      ...Array.from({ length: 8 }, (_, i) =>
+      ...Array.from({ length: 10 }, (_, i) =>
         div(
           { class: "row" },
           strong(`Item ${i + 1}`),
           p("Sample content block to create realistic scroll depth."),
         ),
       ),
+      div(
+        { class: "row" },
+        strong("Keyboard Probe"),
+        p("Focus this field on mobile and verify footer stays visible."),
+        input({
+          type: "text",
+          placeholder: "Focus me on mobile",
+          "aria-label": "Demo input field",
+        }),
+      ),
     ),
-    div(
-      { class: "row" },
-      strong("Keyboard Probe"),
-      p("Tap into this field on mobile to test virtual keyboard interactions."),
-      input({
-        type: "text",
-        placeholder: "Focus me on mobile",
-        "aria-label": "Demo input field",
-      }),
+  },
+  {
+    className: "demo-sheet-footer",
+    content: div(
+      { class: "demo-sheet-actions" },
+      button({ type: "button", class: "secondary" }, "Cancel"),
+      button({ type: "button" }, "Confirm"),
     ),
-  );
+  },
+];
 
 const destroySheetAfterCloseAnimation = (entry: ActiveSheet) => {
   const panel = entry.sheet.element.querySelector(".vsheet-panel");
@@ -98,7 +112,7 @@ const openDemoSheet = (mode: "mobile" | "desktop") => {
   const isOpen = van.state(false);
   const sheet = createSheet({
     isOpen,
-    content: () => demoContent(mode),
+    sections: demoSections(mode),
     onOpenChange: (open) => {
       if (!open) {
         const entry = activeSheet;

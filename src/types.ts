@@ -9,9 +9,21 @@ export type SheetReason =
   | "drag"
   | "close-button";
 
+export type SheetRenderable =
+  | HTMLElement
+  | string
+  | (() => HTMLElement | string);
+
+export interface SheetSection {
+  content: SheetRenderable;
+  scroll?: boolean;
+  className?: string;
+}
+
 export interface SheetOptions {
   isOpen: VanState<boolean>;
-  content: HTMLElement | string | (() => HTMLElement | string);
+  content?: SheetRenderable;
+  sections?: SheetSection[];
   closeIcon?: HTMLElement | (() => HTMLElement);
   mountTo?: HTMLElement | string;
   dismissible?: boolean;
