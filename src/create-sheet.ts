@@ -13,6 +13,7 @@ const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
 const DRAG_CLOSE_THRESHOLD_PX = 150;
 const MOBILE_SHEET_HEIGHT_RATIO = 0.95;
 const KEYBOARD_CLOSED_EPSILON_PX = 1;
+const PANEL_TRANSITION_FALLBACK_MS = 550;
 
 const resolveMountTarget = (mountTo?: HTMLElement | string): HTMLElement => {
   if (!mountTo) {
@@ -119,6 +120,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const closeOnEscape = options.closeOnEscape ?? true;
   const showBackdrop = options.showBackdrop ?? true;
   const showCloseButton = options.showCloseButton ?? true;
+  const adjustableHeight = options.adjustableHeight ?? false;
 
   const closeButton = button(
     {
@@ -158,6 +160,12 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     );
   }
 
+  const fixedSectionElements = Array.from(
+    sectionsElement.querySelectorAll<HTMLElement>(
+      "[data-vsheet-scroll='false']",
+    ),
+  );
+
   const panel = section(
     {
       class: "vsheet-panel",
@@ -187,6 +195,18 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let activeDragTouchId: number | null = null;
   let baseMobileViewportHeight = 0;
   let stopViewportTracking: (() => void) | null = null;
+  let scheduledMobileHeightUpdateRaf: number | null = null;
+  let resizeObserver: ResizeObserver | null = null;
+  let mutationObserver: MutationObserver | null = null;
+  let hasLoadTracking = false;
+  let cachedNaturalPanelHeight = 0;
+  let naturalPanelHeightDirty = true;
+  let lastMeasuredScrollContentWidth = 0;
+  let scheduledClosedPremeasureRaf: number | null = null;
+  let shouldDeferCloseStateClear = false;
+  let dragCloseStateClearTimeout: number | null = null;
+  let dragCloseStateClearHandler: ((event: TransitionEvent) => void) | null =
+    null;
   let focusedElementScrollRaf: number | null = null;
   let focusedElementScrollTimeouts: number[] = [];
 
@@ -206,6 +226,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     root.style.removeProperty("--vsheet-root-offset-y");
     delete root.dataset.keyboardOpen;
     baseMobileViewportHeight = 0;
+    cachedNaturalPanelHeight = 0;
+    naturalPanelHeightDirty = true;
+    lastMeasuredScrollContentWidth = 0;
   };
 
   const clearFocusedElementScrollSchedule = () => {
@@ -227,6 +250,158 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     stopViewportTracking();
     stopViewportTracking = null;
+  };
+
+  const clearScheduledMobileHeightUpdate = () => {
+    if (scheduledMobileHeightUpdateRaf === null) {
+      return;
+    }
+
+    cancelAnimationFrame(scheduledMobileHeightUpdateRaf);
+    scheduledMobileHeightUpdateRaf = null;
+  };
+
+  const clearClosedPremeasureSchedule = () => {
+    if (scheduledClosedPremeasureRaf === null) {
+      return;
+    }
+
+    cancelAnimationFrame(scheduledClosedPremeasureRaf);
+    scheduledClosedPremeasureRaf = null;
+  };
+
+  const scheduleClosedAdjustablePremeasure = () => {
+    if (
+      !adjustableHeight ||
+      options.isOpen.val ||
+      !isMobileViewport() ||
+      scheduledClosedPremeasureRaf !== null
+    ) {
+      return;
+    }
+
+    scheduledClosedPremeasureRaf = requestAnimationFrame(() => {
+      scheduledClosedPremeasureRaf = null;
+      if (!adjustableHeight || options.isOpen.val || !isMobileViewport()) {
+        return;
+      }
+
+      naturalPanelHeightDirty = true;
+      void getNaturalPanelHeight();
+    });
+  };
+
+  const clearDragCloseStateClearSchedule = () => {
+    if (dragCloseStateClearTimeout !== null) {
+      clearTimeout(dragCloseStateClearTimeout);
+      dragCloseStateClearTimeout = null;
+    }
+
+    if (dragCloseStateClearHandler) {
+      panel.removeEventListener("transitionend", dragCloseStateClearHandler);
+      dragCloseStateClearHandler = null;
+    }
+  };
+
+  const finalizeDragCloseStateClear = () => {
+    clearDragCloseStateClearSchedule();
+    shouldDeferCloseStateClear = false;
+    clearMobileHeightState();
+    scheduleClosedAdjustablePremeasure();
+  };
+
+  const scheduleDragCloseStateClear = () => {
+    clearDragCloseStateClearSchedule();
+
+    const maybeFinalize = () => {
+      if (options.isOpen.val) {
+        return;
+      }
+
+      finalizeDragCloseStateClear();
+    };
+
+    dragCloseStateClearHandler = (event: TransitionEvent) => {
+      void event;
+      maybeFinalize();
+    };
+
+    panel.addEventListener("transitionend", dragCloseStateClearHandler);
+    dragCloseStateClearTimeout = window.setTimeout(
+      maybeFinalize,
+      PANEL_TRANSITION_FALLBACK_MS,
+    );
+  };
+
+  const scheduleMobileOpenHeightUpdate = () => {
+    if (scheduledMobileHeightUpdateRaf !== null) {
+      return;
+    }
+
+    scheduledMobileHeightUpdateRaf = requestAnimationFrame(() => {
+      scheduledMobileHeightUpdateRaf = null;
+      updateMobileOpenHeight();
+    });
+  };
+
+  const handleContentHeightSignal = () => {
+    naturalPanelHeightDirty = true;
+    scheduleMobileOpenHeightUpdate();
+  };
+
+  const handleContentLoad = () => {
+    naturalPanelHeightDirty = true;
+    scheduleMobileOpenHeightUpdate();
+  };
+
+  const stopContentHeightTracking = () => {
+    clearScheduledMobileHeightUpdate();
+
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+
+    if (mutationObserver) {
+      mutationObserver.disconnect();
+      mutationObserver = null;
+    }
+
+    if (hasLoadTracking) {
+      sectionsElement.removeEventListener("load", handleContentLoad, true);
+      hasLoadTracking = false;
+    }
+  };
+
+  const ensureContentHeightTracking = () => {
+    if (!adjustableHeight || !options.isOpen.val || !isMobileViewport()) {
+      stopContentHeightTracking();
+      return;
+    }
+
+    if (!hasLoadTracking) {
+      sectionsElement.addEventListener("load", handleContentLoad, true);
+      hasLoadTracking = true;
+    }
+
+    if (typeof ResizeObserver === "function") {
+      if (!resizeObserver) {
+        resizeObserver = new ResizeObserver(handleContentHeightSignal);
+        resizeObserver.observe(headerElement);
+        for (const fixedSectionElement of fixedSectionElements) {
+          resizeObserver.observe(fixedSectionElement);
+        }
+      }
+    }
+
+    if (!mutationObserver) {
+      mutationObserver = new MutationObserver(handleContentHeightSignal);
+      mutationObserver.observe(sectionsElement, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
+    }
   };
 
   const getLayoutViewportHeight = () =>
@@ -273,6 +448,60 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     return Math.round(viewport.offsetTop + viewport.height);
   };
 
+  const measureNaturalScrollSectionHeight = (contentWidth: number) => {
+    const measurementElement = scrollContent.cloneNode(true) as HTMLElement;
+    measurementElement.dataset.vsheetMeasure = "true";
+    measurementElement.style.position = "absolute";
+    measurementElement.style.left = "0";
+    measurementElement.style.top = "0";
+    measurementElement.style.visibility = "hidden";
+    measurementElement.style.pointerEvents = "none";
+    measurementElement.style.height = "auto";
+    measurementElement.style.maxHeight = "none";
+    measurementElement.style.minHeight = "0";
+    measurementElement.style.overflowY = "visible";
+    measurementElement.style.flex = "0 0 auto";
+
+    if (contentWidth > 0) {
+      measurementElement.style.width = `${contentWidth}px`;
+    } else {
+      measurementElement.style.width = "100%";
+    }
+
+    panel.append(measurementElement);
+    try {
+      return Math.max(0, Math.round(measurementElement.scrollHeight));
+    } finally {
+      measurementElement.remove();
+    }
+  };
+
+  const getNaturalPanelHeight = () => {
+    const contentWidth = Math.round(
+      scrollContent.getBoundingClientRect().width,
+    );
+    if (contentWidth > 0 && contentWidth !== lastMeasuredScrollContentWidth) {
+      naturalPanelHeightDirty = true;
+    }
+
+    if (!naturalPanelHeightDirty) {
+      return cachedNaturalPanelHeight;
+    }
+
+    const naturalScrollSectionHeight =
+      measureNaturalScrollSectionHeight(contentWidth);
+    const naturalSectionsHeight =
+      sectionsElement.offsetHeight -
+      scrollContent.offsetHeight +
+      naturalScrollSectionHeight;
+    const naturalPanelHeight =
+      headerElement.offsetHeight + naturalSectionsHeight;
+    cachedNaturalPanelHeight = Math.max(0, Math.round(naturalPanelHeight));
+    naturalPanelHeightDirty = false;
+    lastMeasuredScrollContentWidth = contentWidth;
+    return cachedNaturalPanelHeight;
+  };
+
   const updateMobileOpenHeight = () => {
     if (!options.isOpen.val || !isMobileViewport()) {
       return;
@@ -292,7 +521,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     const basePanelHeight = Math.round(
       baseMobileViewportHeight * MOBILE_SHEET_HEIGHT_RATIO,
     );
-    const panelHeight = Math.max(0, basePanelHeight - keyboardHeight);
+    const maxPanelHeight = Math.max(0, basePanelHeight - keyboardHeight);
+    const panelHeight = adjustableHeight
+      ? Math.min(maxPanelHeight, getNaturalPanelHeight())
+      : maxPanelHeight;
     const contentExtraBottom = hasFixedSections ? 0 : keyboardHeight;
     const sectionsExtraBottom = hasFixedSections ? keyboardHeight : 0;
 
@@ -407,16 +639,42 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
   const applyMobileOpenHeight = (open: boolean) => {
     if (!open || !isMobileViewport()) {
+      clearClosedPremeasureSchedule();
       stopReactiveViewportTracking();
+      stopContentHeightTracking();
+      if (
+        shouldDeferCloseStateClear &&
+        adjustableHeight &&
+        isMobileViewport()
+      ) {
+        scheduleDragCloseStateClear();
+        return;
+      }
+
+      clearDragCloseStateClearSchedule();
+      shouldDeferCloseStateClear = false;
       clearMobileHeightState();
+      if (!open) {
+        scheduleClosedAdjustablePremeasure();
+      }
       return;
     }
 
+    clearDragCloseStateClearSchedule();
+    shouldDeferCloseStateClear = false;
+    clearClosedPremeasureSchedule();
     ensureReactiveViewportTracking();
+    ensureContentHeightTracking();
     updateMobileOpenHeight();
   };
 
   const syncOpenState = (open: boolean) => {
+    if (adjustableHeight && open) {
+      root.dataset.adjustableHeight = "true";
+    } else {
+      delete root.dataset.adjustableHeight;
+    }
+
     root.dataset.state = open ? "open" : "closed";
     root.setAttribute("aria-hidden", open ? "false" : "true");
     applyMobileOpenHeight(open);
@@ -599,6 +857,13 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
   const stateSync = van.derive(() => {
     const currentOpen = options.isOpen.val;
+    const justOpened = currentOpen && !previousOpen;
+    const justClosed = !currentOpen && previousOpen;
+    if (justOpened) {
+      shouldDeferCloseStateClear = false;
+    } else if (justClosed) {
+      shouldDeferCloseStateClear = adjustableHeight && isMobileViewport();
+    }
     syncOpenState(currentOpen);
 
     if (currentOpen === previousOpen) {
@@ -616,7 +881,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     open: () => setOpen(true, "api"),
     close: (reason = "api") => setOpen(false, reason),
     destroy: () => {
+      clearDragCloseStateClearSchedule();
+      clearClosedPremeasureSchedule();
       stopReactiveViewportTracking();
+      stopContentHeightTracking();
       clearMobileHeightState();
       clearFocusedElementScrollSchedule();
       backdrop.removeEventListener("click", handleBackdropClick);

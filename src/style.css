@@ -37,6 +37,12 @@
   max-height: 100dvh;
 }
 
+.vsheet-root[data-adjustable-height="true"] .vsheet-panel {
+  transition:
+    transform 500ms cubic-bezier(0.32, 0.72, 0, 1),
+    height 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 .vsheet-root[data-dragging="true"] .vsheet-panel {
   transition: none;
 }

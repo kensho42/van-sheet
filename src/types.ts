@@ -24,6 +24,7 @@ export interface SheetOptions {
   isOpen: VanState<boolean>;
   content?: SheetRenderable;
   sections?: SheetSection[];
+  adjustableHeight?: boolean;
   closeIcon?: HTMLElement | (() => HTMLElement);
   mountTo?: HTMLElement | string;
   dismissible?: boolean;

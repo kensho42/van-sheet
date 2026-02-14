@@ -8,13 +8,14 @@ import "./demo.css";
 const { button, div, h1, h2, input, p, strong } = van.tags;
 
 const EXIT_ANIMATION_FALLBACK_MS = 550;
+const ADJUSTABLE_OPEN_DELAY_MS = 20;
 
 type ActiveSheet = {
   isOpen: ReturnType<typeof van.state<boolean>>;
   sheet: ReturnType<typeof createSheet>;
 };
 
-type DemoLayout = "default" | "keyboard-probe";
+type DemoLayout = "default" | "keyboard-probe" | "adjustable-height";
 
 let activeSheet: ActiveSheet | null = null;
 const latestOptionResult = van.state("No option submitted yet.");
@@ -122,6 +123,82 @@ const keyboardProbeSections = (): SheetSection[] => [
   },
 ];
 
+const adjustableHeightSections = (): SheetSection[] => {
+  const itemCount = van.state(1);
+  const minItems = 1;
+  const maxItems = 18;
+  const dynamicRows = div();
+
+  const addItem = () => {
+    itemCount.val = Math.min(maxItems, itemCount.val + 1);
+  };
+
+  const removeItem = () => {
+    itemCount.val = Math.max(minItems, itemCount.val - 1);
+  };
+
+  const dynamicRowsSync = van.derive(() => {
+    dynamicRows.replaceChildren(
+      ...Array.from({ length: itemCount.val }, (_, i) =>
+        div(
+          { class: "row" },
+          strong(`Dynamic Row ${i + 1}`),
+          p(
+            "Used to verify content-fit height transitions in adjustable mode.",
+          ),
+        ),
+      ),
+    );
+  });
+  void dynamicRowsSync;
+
+  return [
+    {
+      className: "demo-adjustable-top",
+      content: div(
+        strong("Adjustable Height Demo"),
+        p("Tap +/- to change content and watch the sheet resize smoothly."),
+        p("The mobile sheet still caps at 95% height, then scroll takes over."),
+      ),
+    },
+    {
+      className: "demo-adjustable-content",
+      scroll: true,
+      content: div(
+        { class: "demo-sheet-scroll demo-adjustable-scroll" },
+        div(
+          { class: "row demo-adjustable-controls" },
+          strong("Rows"),
+          p(
+            () =>
+              `${itemCount.val} dynamic item${itemCount.val === 1 ? "" : "s"}`,
+          ),
+          div(
+            { class: "demo-adjustable-buttons" },
+            button(
+              {
+                type: "button",
+                class: "secondary",
+                onclick: removeItem,
+              },
+              "-",
+            ),
+            button(
+              {
+                type: "button",
+                class: "accent",
+                onclick: addItem,
+              },
+              "+",
+            ),
+          ),
+        ),
+        dynamicRows,
+      ),
+    },
+  ];
+};
+
 const destroySheetAfterCloseAnimation = (entry: ActiveSheet) => {
   const panel = entry.sheet.element.querySelector(".vsheet-panel");
   let settled = false;
@@ -157,6 +234,10 @@ const resolveDemoSections = (
   mode: "mobile" | "desktop",
   layout: DemoLayout,
 ): SheetSection[] => {
+  if (layout === "adjustable-height") {
+    return adjustableHeightSections();
+  }
+
   if (layout === "keyboard-probe") {
     return keyboardProbeSections();
   }
@@ -174,6 +255,7 @@ const openDemoSheet = (
   const sheet = createSheet({
     isOpen,
     sections: resolveDemoSections(mode, layout),
+    adjustableHeight: layout === "adjustable-height",
     onOpenChange: (open) => {
       if (!open) {
         const entry = activeSheet;
@@ -190,11 +272,13 @@ const openDemoSheet = (
   const entry: ActiveSheet = { isOpen, sheet };
   activeSheet = entry;
 
-  requestAnimationFrame(() => {
+  const openDelay =
+    layout === "adjustable-height" ? ADJUSTABLE_OPEN_DELAY_MS : 0;
+  window.setTimeout(() => {
     if (activeSheet === entry) {
       entry.isOpen.val = true;
     }
-  });
+  }, openDelay);
 };
 
 const openOptionSelectorDemo = async () => {
@@ -263,6 +347,21 @@ const app = div(
           onclick: () => openDemoSheet("mobile", "keyboard-probe"),
         },
         "Open Keyboard Probe",
+      ),
+    ),
+    div(
+      { class: "demo-card" },
+      h2("Adjustable Height"),
+      p(
+        "Opens a mobile sheet where height follows content with smooth transitions and a 95% cap.",
+      ),
+      button(
+        {
+          type: "button",
+          class: "accent",
+          onclick: () => openDemoSheet("mobile", "adjustable-height"),
+        },
+        "Open Adjustable Height Demo",
       ),
     ),
   ),

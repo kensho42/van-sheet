@@ -208,6 +208,56 @@ body {
   background: linear-gradient(135deg, #3d4252 0%, #596078 100%);
 }
 
+.demo-adjustable-top {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid #ddeaf7;
+}
+
+.demo-adjustable-content {
+  padding-top: 12px;
+}
+
+.demo-adjustable-scroll {
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.demo-adjustable-controls {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.demo-adjustable-controls p {
+  margin: 0;
+}
+
+.demo-adjustable-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.demo-adjustable-buttons button {
+  margin-top: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.55rem 0.9rem;
+}
+
+.demo-adjustable-buttons button.secondary {
+  background: linear-gradient(135deg, #3d4252 0%, #596078 100%);
+}
+
+.demo-adjustable-buttons button.accent {
+  background: linear-gradient(135deg, #188c6f 0%, #1ead90 100%);
+}
+
 .vsheet-root[data-demo-mode="desktop"] .vsheet-panel {
   top: 0;
   right: 0;

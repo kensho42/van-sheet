@@ -8,6 +8,7 @@
 - Dismissal pathways for backdrop, `Escape`, close button, and touch drag.
 - Simple `content` mode or structured `sections` mode with one scrollable region.
 - Mobile keyboard-aware viewport handling.
+- Optional content-fit mobile height (`adjustableHeight`) capped to 95% viewport.
 - Custom close icon support.
 - CSS variables for theme and layout control.
 
@@ -175,6 +176,7 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 | `isOpen` | `VanState<boolean>` | required | Source of truth for open/close state. |
 | `content` | `SheetRenderable` | `undefined` | Use for single-scroll-content mode. |
 | `sections` | `SheetSection[]` | `undefined` | Use for fixed/scroll/fixed layouts. |
+| `adjustableHeight` | `boolean` | `false` | Mobile-only. Fits to content height up to the 95% mobile cap. |
 | `closeIcon` | `HTMLElement \| (() => HTMLElement)` | built-in icon | Custom close icon element/factory. |
 | `mountTo` | `HTMLElement \| string` | `document.body` | Selector fallback is `document.body` if no match. |
 | `dismissible` | `boolean` | `true` | Prevent non-API closing when `false`. |
@@ -210,6 +212,14 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 - You cannot provide both `content` and `sections`.
 - You must provide one of `content` or `sections`.
 - `sections` must contain exactly one section with `scroll: true`.
+
+### Adjustable mobile height
+
+- Enable with `adjustableHeight: true`.
+- Applies only in mobile viewport mode (`(max-width: 767px)`).
+- Sheet height follows content and animates height changes while open.
+- Max height remains capped at the existing 95% mobile limit (keyboard adjustments still apply).
+- When content exceeds the cap, overflow remains in the scroll section.
 
 ## Styling and Theming
 

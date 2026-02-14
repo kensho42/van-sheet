@@ -1,5 +1,5 @@
 import van from "vanjs-core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSheet } from "../src/create-sheet";
 
 type ViewportListener = (event: Event) => void;
@@ -23,6 +23,13 @@ type VisualViewportMock = {
   emit: (type: ViewportEvent) => void;
 };
 
+type LayoutMetrics = {
+  headerHeight: number;
+  sectionsOffsetHeight: number;
+  scrollOffsetHeight: number;
+  scrollScrollHeight: number;
+};
+
 const flush = async () => {
   await Promise.resolve();
 };
@@ -36,6 +43,22 @@ const originalVisualViewport = Object.getOwnPropertyDescriptor(
   window,
   "visualViewport",
 );
+const originalOffsetHeight = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "offsetHeight",
+);
+const originalScrollHeight = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollHeight",
+);
+const originalClientHeight = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "clientHeight",
+);
+const globalWithResizeObserver = globalThis as typeof globalThis & {
+  ResizeObserver?: typeof ResizeObserver;
+};
+const originalResizeObserver = globalWithResizeObserver.ResizeObserver;
 
 const setInnerHeight = (height: number) => {
   Object.defineProperty(window, "innerHeight", {
@@ -108,7 +131,86 @@ const createVisualViewportMock = (
   return mock;
 };
 
+const installLayoutMetricsMock = (metrics: LayoutMetrics) => {
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get() {
+      if (this.classList.contains("vsheet-header")) {
+        return metrics.headerHeight;
+      }
+
+      if (this.classList.contains("vsheet-sections")) {
+        return metrics.sectionsOffsetHeight;
+      }
+
+      if (this.classList.contains("vsheet-content")) {
+        return metrics.scrollOffsetHeight;
+      }
+
+      return originalOffsetHeight?.get
+        ? originalOffsetHeight.get.call(this)
+        : 0;
+    },
+  });
+
+  Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+    configurable: true,
+    get() {
+      if (this.classList.contains("vsheet-content")) {
+        return metrics.scrollScrollHeight;
+      }
+
+      return originalScrollHeight?.get
+        ? originalScrollHeight.get.call(this)
+        : 0;
+    },
+  });
+
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+    configurable: true,
+    get() {
+      if (this.classList.contains("vsheet-content")) {
+        return metrics.scrollOffsetHeight;
+      }
+
+      return originalClientHeight?.get
+        ? originalClientHeight.get.call(this)
+        : 0;
+    },
+  });
+};
+
+const restoreLayoutMetricsMock = () => {
+  if (originalOffsetHeight) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "offsetHeight",
+      originalOffsetHeight,
+    );
+  }
+
+  if (originalScrollHeight) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "scrollHeight",
+      originalScrollHeight,
+    );
+  }
+
+  if (originalClientHeight) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "clientHeight",
+      originalClientHeight,
+    );
+  }
+};
+
 afterEach(() => {
+  restoreLayoutMetricsMock();
+  globalWithResizeObserver.ResizeObserver = originalResizeObserver;
+  vi.restoreAllMocks();
+
   if (originalInnerHeight) {
     Object.defineProperty(window, "innerHeight", originalInnerHeight);
   }
@@ -180,6 +282,13 @@ describe("createSheet mobile height snapshot", () => {
     );
 
     isOpen.val = false;
+    await flush();
+    const panel = sheet.element.querySelector<HTMLElement>(".vsheet-panel");
+    const transitionEnd = new Event("transitionend");
+    Object.defineProperty(transitionEnd, "propertyName", {
+      value: "transform",
+    });
+    panel?.dispatchEvent(transitionEnd);
     await flush();
 
     expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
@@ -326,6 +435,201 @@ describe("createSheet mobile height snapshot", () => {
     ).toBe("180px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "120px",
+    );
+
+    sheet.destroy();
+  });
+});
+
+describe("createSheet adjustable mobile height", () => {
+  it("fits sheet height to content when content is below the mobile cap", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    globalWithResizeObserver.ResizeObserver = undefined;
+
+    const metrics: LayoutMetrics = {
+      headerHeight: 80,
+      sectionsOffsetHeight: 420,
+      scrollOffsetHeight: 280,
+      scrollScrollHeight: 260,
+    };
+    installLayoutMetricsMock(metrics);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+      adjustableHeight: true,
+    });
+
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+
+    sheet.destroy();
+  });
+
+  it("keeps the 95% mobile cap and preserves internal scroll section overflow", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    globalWithResizeObserver.ResizeObserver = undefined;
+
+    const metrics: LayoutMetrics = {
+      headerHeight: 80,
+      sectionsOffsetHeight: 1200,
+      scrollOffsetHeight: 240,
+      scrollScrollHeight: 1200,
+    };
+    installLayoutMetricsMock(metrics);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+      adjustableHeight: true,
+    });
+
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "950px",
+    );
+    const scrollSection = sheet.element.querySelector<HTMLElement>(
+      "[data-vsheet-scroll='true']",
+    );
+    expect(scrollSection).not.toBeNull();
+    expect(scrollSection?.classList.contains("vsheet-content")).toBe(true);
+
+    sheet.destroy();
+  });
+
+  it("updates adjustable height when scroll content mutates while open", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    globalWithResizeObserver.ResizeObserver = undefined;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+
+    const metrics: LayoutMetrics = {
+      headerHeight: 80,
+      sectionsOffsetHeight: 420,
+      scrollOffsetHeight: 280,
+      scrollScrollHeight: 260,
+    };
+    installLayoutMetricsMock(metrics);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+      adjustableHeight: true,
+    });
+
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+
+    metrics.scrollScrollHeight = 560;
+    const scrollSection = sheet.element.querySelector<HTMLElement>(
+      "[data-vsheet-scroll='true']",
+    );
+    scrollSection?.append(document.createElement("div"));
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "780px",
+    );
+
+    sheet.destroy();
+  });
+
+  it("updates adjustable height from mutation even when ResizeObserver exists", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+
+    class ResizeObserverMock {
+      observe(): void {}
+      disconnect(): void {}
+      unobserve(): void {}
+    }
+    globalWithResizeObserver.ResizeObserver =
+      ResizeObserverMock as unknown as typeof ResizeObserver;
+
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+
+    const metrics: LayoutMetrics = {
+      headerHeight: 80,
+      sectionsOffsetHeight: 420,
+      scrollOffsetHeight: 280,
+      scrollScrollHeight: 260,
+    };
+    installLayoutMetricsMock(metrics);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+      adjustableHeight: true,
+    });
+
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+
+    metrics.scrollScrollHeight = 560;
+    const scrollSection = sheet.element.querySelector<HTMLElement>(
+      "[data-vsheet-scroll='true']",
+    );
+    scrollSection?.append(document.createElement("div"));
+    await flush();
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "780px",
+    );
+
+    sheet.destroy();
+  });
+
+  it("clears adjustable mobile height state after close", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    globalWithResizeObserver.ResizeObserver = undefined;
+
+    const metrics: LayoutMetrics = {
+      headerHeight: 80,
+      sectionsOffsetHeight: 420,
+      scrollOffsetHeight: 280,
+      scrollScrollHeight: 260,
+    };
+    installLayoutMetricsMock(metrics);
+
+    const isOpen = van.state(true);
+    const sheet = createSheet({
+      isOpen,
+      content: "content",
+      adjustableHeight: true,
+    });
+
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+
+    vi.useFakeTimers();
+    isOpen.val = false;
+    await flush();
+    vi.advanceTimersByTime(600);
+    await flush();
+    vi.useRealTimers();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "",
     );
 
     sheet.destroy();
