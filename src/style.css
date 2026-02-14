@@ -99,10 +99,6 @@
   pointer-events: none;
 }
 
-.vsheet-root[data-floating-close-button="true"] .vsheet-panel {
-  overflow: hidden;
-}
-
 .vsheet-root[data-floating-close-button="true"] .vsheet-close {
   pointer-events: auto;
 }
