@@ -1,12 +1,24 @@
 import van from "vanjs-core";
-import { createDefaultCloseIcon } from "./internal/icons";
-import type {
-  SheetInstance,
-  SheetOptions,
-  SheetReason,
-  SheetRenderable,
-  SheetSection,
-} from "./types";
+import {
+  findScrollableAncestor,
+  normalizeSections,
+  resolveCloseIcon,
+  resolveContent,
+  resolveMountTarget,
+  resolveSectionClassName,
+} from "./internal/sheet-helpers";
+import type { SheetStackSnapshot } from "./internal/stack";
+import {
+  claimSheetStackOpenOrder,
+  claimSheetStackParticipantId,
+  clearSheetStackDragProgress,
+  isTopOpenSheetStackParticipant,
+  registerSheetStackParticipant,
+  setSheetStackDragProgress,
+  syncSheetStackState,
+  unregisterSheetStackParticipant,
+} from "./internal/stack";
+import type { SheetInstance, SheetOptions, SheetReason } from "./types";
 
 const { button, div, header, section } = van.tags;
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
@@ -17,217 +29,6 @@ const PANEL_TRANSITION_FALLBACK_MS = 550;
 const STACK_OFFSET_STEP_PX = 12;
 const STACK_SCALE_STEP = 0.04;
 const STACK_MIN_SCALE = 0.72;
-
-type SheetStackSnapshot = {
-  depthFromTop: number;
-  isTop: boolean;
-  layer: number;
-  openCount: number;
-  visualDepth: number;
-  stackDragging: boolean;
-};
-
-type SheetStackParticipant = {
-  id: number;
-  isOpen: () => boolean;
-  getOpenOrder: () => number;
-  applyStackSnapshot: (snapshot: SheetStackSnapshot | null) => void;
-};
-
-const sheetStackParticipants = new Map<number, SheetStackParticipant>();
-let nextSheetStackParticipantId = 1;
-let nextSheetStackOpenOrder = 1;
-let activeStackDragParticipantId: number | null = null;
-let activeStackDragProgress = 0;
-
-const setSheetStackDragProgress = (participantId: number, progress: number) => {
-  const clampedProgress = Math.max(0, Math.min(1, progress));
-  if (
-    activeStackDragParticipantId === participantId &&
-    activeStackDragProgress === clampedProgress
-  ) {
-    return;
-  }
-
-  activeStackDragParticipantId = participantId;
-  activeStackDragProgress = clampedProgress;
-  syncSheetStackState();
-};
-
-const clearSheetStackDragProgress = (participantId?: number) => {
-  if (
-    participantId !== undefined &&
-    activeStackDragParticipantId !== participantId
-  ) {
-    return;
-  }
-
-  if (activeStackDragParticipantId === null && activeStackDragProgress === 0) {
-    return;
-  }
-
-  activeStackDragParticipantId = null;
-  activeStackDragProgress = 0;
-  syncSheetStackState();
-};
-
-const getOpenSheetStackParticipants = (): SheetStackParticipant[] =>
-  Array.from(sheetStackParticipants.values())
-    .filter((participant) => participant.isOpen())
-    .sort(
-      (leftParticipant, rightParticipant) =>
-        leftParticipant.getOpenOrder() - rightParticipant.getOpenOrder(),
-    );
-
-const getTopOpenSheetStackParticipant = (): SheetStackParticipant | null => {
-  const openParticipants = getOpenSheetStackParticipants();
-  if (openParticipants.length === 0) {
-    return null;
-  }
-
-  return openParticipants[openParticipants.length - 1];
-};
-
-const isTopOpenSheetStackParticipant = (participantId: number): boolean =>
-  getTopOpenSheetStackParticipant()?.id === participantId;
-
-const syncSheetStackState = () => {
-  const openParticipants = getOpenSheetStackParticipants();
-  const openCount = openParticipants.length;
-  const topParticipant = openParticipants[openCount - 1];
-  const stackDragProgress =
-    topParticipant && activeStackDragParticipantId === topParticipant.id
-      ? activeStackDragProgress
-      : 0;
-
-  if (stackDragProgress === 0) {
-    activeStackDragParticipantId = null;
-    activeStackDragProgress = 0;
-  }
-
-  const stackDragging = stackDragProgress > 0;
-  const openParticipantIds = new Set(
-    openParticipants.map((participant) => participant.id),
-  );
-
-  for (const [index, participant] of openParticipants.entries()) {
-    const depthFromTop = openCount - index - 1;
-    const visualDepth = Math.max(0, depthFromTop - stackDragProgress);
-    participant.applyStackSnapshot({
-      depthFromTop,
-      isTop: depthFromTop === 0,
-      layer: index,
-      openCount,
-      visualDepth,
-      stackDragging,
-    });
-  }
-
-  for (const participant of sheetStackParticipants.values()) {
-    if (openParticipantIds.has(participant.id)) {
-      continue;
-    }
-
-    participant.applyStackSnapshot(null);
-  }
-};
-
-const resolveMountTarget = (mountTo?: HTMLElement | string): HTMLElement => {
-  if (!mountTo) {
-    return document.body;
-  }
-
-  if (typeof mountTo === "string") {
-    const target = document.querySelector<HTMLElement>(mountTo);
-    return target ?? document.body;
-  }
-
-  return mountTo;
-};
-
-const resolveContent = (content: SheetRenderable): HTMLElement | string => {
-  const resolved = typeof content === "function" ? content() : content;
-  return resolved;
-};
-
-const normalizeSections = (options: SheetOptions): SheetSection[] => {
-  const hasContent = options.content !== undefined;
-  const hasSections = options.sections !== undefined;
-
-  if (hasContent && hasSections) {
-    throw new Error(
-      "createSheet: provide either `content` or `sections`, not both.",
-    );
-  }
-
-  if (!hasContent && !hasSections) {
-    throw new Error("createSheet: provide `content` or `sections`.");
-  }
-
-  if (hasContent) {
-    return [{ content: options.content as SheetRenderable, scroll: true }];
-  }
-
-  const sections = options.sections as SheetSection[];
-  const scrollSectionCount = sections.filter(({ scroll }) => scroll).length;
-  if (scrollSectionCount !== 1) {
-    throw new Error(
-      `createSheet: \`sections\` must include exactly one section with \`scroll: true\`; received ${scrollSectionCount}.`,
-    );
-  }
-
-  return sections;
-};
-
-const resolveSectionClassName = (section: SheetSection): string => {
-  const classNames = ["vsheet-section"];
-  if (section.scroll) {
-    classNames.push("vsheet-content");
-  }
-
-  const customClassName = section.className?.trim();
-  if (customClassName) {
-    classNames.push(customClassName);
-  }
-
-  return classNames.join(" ");
-};
-
-const resolveCloseIcon = (
-  closeIcon?: HTMLElement | (() => HTMLElement),
-): HTMLElement | SVGSVGElement => {
-  if (!closeIcon) {
-    return createDefaultCloseIcon();
-  }
-
-  return typeof closeIcon === "function" ? closeIcon() : closeIcon;
-};
-
-const isElementScrollableY = (element: HTMLElement): boolean => {
-  const { overflowY } = window.getComputedStyle(element);
-  const allowsScroll = overflowY === "auto" || overflowY === "scroll";
-  return allowsScroll && element.scrollHeight > element.clientHeight;
-};
-
-const findScrollableAncestor = (
-  target: EventTarget | null,
-  stopAt: HTMLElement,
-): HTMLElement | null => {
-  if (!(target instanceof HTMLElement)) {
-    return null;
-  }
-
-  let node: HTMLElement | null = target;
-  while (node && node !== stopAt) {
-    if (isElementScrollableY(node)) {
-      return node;
-    }
-
-    node = node.parentElement;
-  }
-
-  return null;
-};
 
 export const createSheet = (options: SheetOptions): SheetInstance => {
   const resolvedSections = normalizeSections(options);
@@ -301,6 +102,19 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
   const root = div({ class: "vsheet-root" }, backdrop, panel);
   resolveMountTarget(options.mountTo).append(root);
+  const setRootDatasetFlag = (key: string, enabled: boolean) => {
+    if (enabled) {
+      root.dataset[key] = "true";
+      return;
+    }
+
+    delete root.dataset[key];
+  };
+  const clearRootDatasetEntries = (...keys: string[]) => {
+    for (const key of keys) {
+      delete root.dataset[key];
+    }
+  };
 
   let pendingReason: SheetReason = "api";
   let previousOpen = options.isOpen.val;
@@ -321,47 +135,89 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let lastMeasuredScrollContentWidth = 0;
   let scheduledClosedPremeasureRaf: number | null = null;
   let shouldDeferCloseStateClear = false;
-  let dragCloseStateClearTimeout: number | null = null;
-  let dragCloseStateClearHandler: ((event: TransitionEvent) => void) | null =
-    null;
   let focusedElementScrollRaf: number | null = null;
   let focusedElementScrollTimeouts: number[] = [];
-  let openOrder = options.isOpen.val ? nextSheetStackOpenOrder++ : 0;
-  const stackParticipantId = nextSheetStackParticipantId++;
+  let openOrder = options.isOpen.val ? claimSheetStackOpenOrder() : 0;
+  const stackParticipantId = claimSheetStackParticipantId();
   let retainStackSnapshotWhileClosed = false;
-  let stackSnapshotRetainClearTimeout: number | null = null;
-  let stackSnapshotRetainClearHandler:
-    | ((event: TransitionEvent) => void)
-    | null = null;
   let adjustableTrackingReady = false;
-  let adjustableTrackingStartTimeout: number | null = null;
-  let adjustableTrackingStartHandler:
-    | ((event: TransitionEvent) => void)
-    | null = null;
+  type TransitionFallbackSchedule = {
+    timeoutId: number | null;
+    transitionHandler: ((event: TransitionEvent) => void) | null;
+  };
+  const stackSnapshotRetainSchedule: TransitionFallbackSchedule = {
+    timeoutId: null,
+    transitionHandler: null,
+  };
+  const adjustableTrackingStartSchedule: TransitionFallbackSchedule = {
+    timeoutId: null,
+    transitionHandler: null,
+  };
+  const dragCloseStateClearSchedule: TransitionFallbackSchedule = {
+    timeoutId: null,
+    transitionHandler: null,
+  };
 
-  const clearStackSnapshotRetainSchedule = () => {
-    if (stackSnapshotRetainClearTimeout !== null) {
-      clearTimeout(stackSnapshotRetainClearTimeout);
-      stackSnapshotRetainClearTimeout = null;
+  const clearTransitionFallbackSchedule = (
+    transitionSchedule: TransitionFallbackSchedule,
+  ) => {
+    if (transitionSchedule.timeoutId !== null) {
+      clearTimeout(transitionSchedule.timeoutId);
+      transitionSchedule.timeoutId = null;
     }
 
-    if (stackSnapshotRetainClearHandler) {
+    if (transitionSchedule.transitionHandler) {
       panel.removeEventListener(
         "transitionend",
-        stackSnapshotRetainClearHandler,
+        transitionSchedule.transitionHandler,
       );
-      stackSnapshotRetainClearHandler = null;
+      transitionSchedule.transitionHandler = null;
     }
+  };
+
+  const scheduleTransitionFallback = (
+    transitionSchedule: TransitionFallbackSchedule,
+    onTrigger: () => void,
+    shouldHandleTransitionEnd?: (event: TransitionEvent) => boolean,
+  ) => {
+    clearTransitionFallbackSchedule(transitionSchedule);
+
+    transitionSchedule.transitionHandler = (event: TransitionEvent) => {
+      if (shouldHandleTransitionEnd && !shouldHandleTransitionEnd(event)) {
+        return;
+      }
+
+      onTrigger();
+    };
+    panel.addEventListener(
+      "transitionend",
+      transitionSchedule.transitionHandler,
+    );
+    transitionSchedule.timeoutId = window.setTimeout(
+      onTrigger,
+      PANEL_TRANSITION_FALLBACK_MS,
+    );
+  };
+
+  const clearStackSnapshotRetainSchedule = () => {
+    clearTransitionFallbackSchedule(stackSnapshotRetainSchedule);
+  };
+
+  const resetStackSnapshotRetainState = () => {
+    retainStackSnapshotWhileClosed = false;
+    clearStackSnapshotRetainSchedule();
   };
 
   const clearStackSnapshot = () => {
     root.style.removeProperty("--vsheet-stack-layer");
     root.style.removeProperty("--vsheet-stack-offset-y");
     root.style.removeProperty("--vsheet-stack-scale");
-    delete root.dataset.stackTop;
-    delete root.dataset.stackDepth;
-    delete root.dataset.stackSize;
-    delete root.dataset.stackDragging;
+    clearRootDatasetEntries(
+      "stackTop",
+      "stackDepth",
+      "stackSize",
+      "stackDragging",
+    );
   };
 
   const finalizeStackSnapshotRetain = () => {
@@ -373,8 +229,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const scheduleStackSnapshotRetainClear = () => {
-    clearStackSnapshotRetainSchedule();
-
     const maybeFinalize = () => {
       if (options.isOpen.val) {
         return;
@@ -383,15 +237,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       finalizeStackSnapshotRetain();
     };
 
-    stackSnapshotRetainClearHandler = (event: TransitionEvent) => {
-      void event;
-      maybeFinalize();
-    };
-    panel.addEventListener("transitionend", stackSnapshotRetainClearHandler);
-    stackSnapshotRetainClearTimeout = window.setTimeout(
-      maybeFinalize,
-      PANEL_TRANSITION_FALLBACK_MS,
-    );
+    scheduleTransitionFallback(stackSnapshotRetainSchedule, maybeFinalize);
   };
 
   const applyStackSnapshot = (snapshot: SheetStackSnapshot | null) => {
@@ -426,12 +272,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     root.dataset.stackTop = snapshot.isTop ? "true" : "false";
     root.dataset.stackDepth = `${stackDepth}`;
     root.dataset.stackSize = `${snapshot.openCount}`;
-    if (snapshot.stackDragging) {
-      root.dataset.stackDragging = "true";
-      return;
-    }
-
-    delete root.dataset.stackDragging;
+    setRootDatasetFlag("stackDragging", snapshot.stackDragging);
   };
 
   const isTopMostOpenSheet = () =>
@@ -448,11 +289,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const clearMobileHeightState = () => {
     root.style.removeProperty("--vsheet-mobile-height");
     root.style.removeProperty("--vsheet-keyboard-height");
-    root.style.removeProperty("--vsheet-content-extra-bottom");
-    root.style.removeProperty("--vsheet-sections-extra-bottom");
     root.style.removeProperty("--vsheet-root-offset-y");
     panel.style.removeProperty("bottom");
-    delete root.dataset.keyboardOpen;
+    setRootDatasetFlag("keyboardOpen", false);
     baseMobileViewportHeight = 0;
     cachedNaturalPanelHeight = 0;
     naturalPanelHeightDirty = true;
@@ -498,43 +337,31 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     scheduledClosedPremeasureRaf = null;
   };
 
-  const clearAdjustableTrackingStartSchedule = () => {
-    if (adjustableTrackingStartTimeout !== null) {
-      clearTimeout(adjustableTrackingStartTimeout);
-      adjustableTrackingStartTimeout = null;
-    }
-
-    if (adjustableTrackingStartHandler) {
-      panel.removeEventListener(
-        "transitionend",
-        adjustableTrackingStartHandler,
-      );
-      adjustableTrackingStartHandler = null;
-    }
+  const stopMobileLifecycleTracking = () => {
+    resetAdjustableTracking();
+    clearClosedPremeasureSchedule();
+    stopReactiveViewportTracking();
+    stopContentHeightTracking();
   };
 
   const updateAdjustableTrackingDataset = () => {
-    if (
+    setRootDatasetFlag(
+      "adjustableTracking",
       adjustableHeight &&
-      adjustableTrackingReady &&
-      options.isOpen.val &&
-      isMobileViewport()
-    ) {
-      root.dataset.adjustableTracking = "true";
-      return;
-    }
-
-    delete root.dataset.adjustableTracking;
+        adjustableTrackingReady &&
+        options.isOpen.val &&
+        isMobileViewport(),
+    );
   };
 
   const resetAdjustableTracking = () => {
-    clearAdjustableTrackingStartSchedule();
+    clearTransitionFallbackSchedule(adjustableTrackingStartSchedule);
     adjustableTrackingReady = false;
     updateAdjustableTrackingDataset();
   };
 
   const startAdjustableTracking = () => {
-    clearAdjustableTrackingStartSchedule();
+    clearTransitionFallbackSchedule(adjustableTrackingStartSchedule);
 
     if (!adjustableHeight || !options.isOpen.val || !isMobileViewport()) {
       return;
@@ -552,8 +379,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const scheduleAdjustableTrackingStart = () => {
-    clearAdjustableTrackingStartSchedule();
-
     if (
       !adjustableHeight ||
       adjustableTrackingReady ||
@@ -575,13 +400,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       startAdjustableTracking();
     };
 
-    adjustableTrackingStartHandler = (event: TransitionEvent) => {
-      maybeStart(event);
-    };
-    panel.addEventListener("transitionend", adjustableTrackingStartHandler);
-    adjustableTrackingStartTimeout = window.setTimeout(() => {
-      maybeStart();
-    }, PANEL_TRANSITION_FALLBACK_MS);
+    scheduleTransitionFallback(
+      adjustableTrackingStartSchedule,
+      maybeStart,
+      (event) => event.target === panel && event.propertyName === "transform",
+    );
   };
 
   const scheduleClosedAdjustablePremeasure = () => {
@@ -606,15 +429,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const clearDragCloseStateClearSchedule = () => {
-    if (dragCloseStateClearTimeout !== null) {
-      clearTimeout(dragCloseStateClearTimeout);
-      dragCloseStateClearTimeout = null;
-    }
-
-    if (dragCloseStateClearHandler) {
-      panel.removeEventListener("transitionend", dragCloseStateClearHandler);
-      dragCloseStateClearHandler = null;
-    }
+    clearTransitionFallbackSchedule(dragCloseStateClearSchedule);
   };
 
   const finalizeDragCloseStateClear = () => {
@@ -625,8 +440,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const scheduleDragCloseStateClear = () => {
-    clearDragCloseStateClearSchedule();
-
     const maybeFinalize = () => {
       if (options.isOpen.val) {
         return;
@@ -635,16 +448,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       finalizeDragCloseStateClear();
     };
 
-    dragCloseStateClearHandler = (event: TransitionEvent) => {
-      void event;
-      maybeFinalize();
-    };
-
-    panel.addEventListener("transitionend", dragCloseStateClearHandler);
-    dragCloseStateClearTimeout = window.setTimeout(
-      maybeFinalize,
-      PANEL_TRANSITION_FALLBACK_MS,
-    );
+    scheduleTransitionFallback(dragCloseStateClearSchedule, maybeFinalize);
   };
 
   const scheduleMobileOpenHeightUpdate = () => {
@@ -658,12 +462,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     });
   };
 
-  const handleContentHeightSignal = () => {
-    naturalPanelHeightDirty = true;
-    scheduleMobileOpenHeightUpdate();
-  };
-
-  const handleContentLoad = () => {
+  const handleContentSizeChange = () => {
     naturalPanelHeightDirty = true;
     scheduleMobileOpenHeightUpdate();
   };
@@ -682,7 +481,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     if (hasLoadTracking) {
-      sectionsElement.removeEventListener("load", handleContentLoad, true);
+      sectionsElement.removeEventListener(
+        "load",
+        handleContentSizeChange,
+        true,
+      );
       hasLoadTracking = false;
     }
   };
@@ -694,13 +497,13 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     if (!hasLoadTracking) {
-      sectionsElement.addEventListener("load", handleContentLoad, true);
+      sectionsElement.addEventListener("load", handleContentSizeChange, true);
       hasLoadTracking = true;
     }
 
     if (typeof ResizeObserver === "function") {
       if (!resizeObserver) {
-        resizeObserver = new ResizeObserver(handleContentHeightSignal);
+        resizeObserver = new ResizeObserver(handleContentSizeChange);
         resizeObserver.observe(headerElement);
         for (const fixedSectionElement of fixedSectionElements) {
           resizeObserver.observe(fixedSectionElement);
@@ -709,7 +512,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     if (!mutationObserver) {
-      mutationObserver = new MutationObserver(handleContentHeightSignal);
+      mutationObserver = new MutationObserver(handleContentSizeChange);
       mutationObserver.observe(sectionsElement, {
         subtree: true,
         childList: true,
@@ -744,22 +547,19 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     return Math.max(0, Math.round(viewport.offsetTop));
   };
 
-  const getVisibleViewportTop = () => {
+  const getVisibleViewportBounds = () => {
     const viewport = window.visualViewport;
     if (!viewport) {
-      return 0;
+      return {
+        top: 0,
+        bottom: getLayoutViewportHeight(),
+      };
     }
 
-    return Math.round(viewport.offsetTop);
-  };
-
-  const getVisibleViewportBottom = () => {
-    const viewport = window.visualViewport;
-    if (!viewport) {
-      return getLayoutViewportHeight();
-    }
-
-    return Math.round(viewport.offsetTop + viewport.height);
+    return {
+      top: Math.round(viewport.offsetTop),
+      bottom: Math.round(viewport.offsetTop + viewport.height),
+    };
   };
 
   const measureNaturalScrollSectionHeight = (contentWidth: number) => {
@@ -841,28 +641,15 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
         ? Math.min(maxPanelHeight, getNaturalPanelHeight())
         : maxPanelHeight;
     const panelBottomInset = keyboardHeight + viewportOffsetTop;
-    const contentExtraBottom = 0;
-    const sectionsExtraBottom = 0;
 
     root.style.setProperty("--vsheet-mobile-height", `${panelHeight}px`);
     root.style.setProperty("--vsheet-keyboard-height", `${keyboardHeight}px`);
-    root.style.setProperty(
-      "--vsheet-content-extra-bottom",
-      `${contentExtraBottom}px`,
-    );
-    root.style.setProperty(
-      "--vsheet-sections-extra-bottom",
-      `${sectionsExtraBottom}px`,
-    );
     root.style.setProperty("--vsheet-root-offset-y", `${viewportOffsetTop}px`);
     panel.style.bottom = `${panelBottomInset}px`;
+    setRootDatasetFlag("keyboardOpen", keyboardHeight > 0);
     if (keyboardHeight > 0) {
-      root.dataset.keyboardOpen = "true";
       scheduleFocusedElementIntoView();
-      return;
     }
-
-    delete root.dataset.keyboardOpen;
   };
 
   const ensureReactiveViewportTracking = () => {
@@ -896,12 +683,14 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     const contentRect = scrollContent.getBoundingClientRect();
     const focusedRect = activeElement.getBoundingClientRect();
-    const visibleViewportTop = getVisibleViewportTop();
-    const visibleViewportBottom = getVisibleViewportBottom();
-    const visibleContentTop = Math.max(contentRect.top, visibleViewportTop);
+    const visibleViewportBounds = getVisibleViewportBounds();
+    const visibleContentTop = Math.max(
+      contentRect.top,
+      visibleViewportBounds.top,
+    );
     const visibleContentBottom = Math.min(
       contentRect.bottom,
-      visibleViewportBottom,
+      visibleViewportBounds.bottom,
     );
     const topSafety = 12;
     const bottomSafety = 16;
@@ -954,27 +743,24 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     scheduleFocusedElementIntoView();
   };
 
+  const applyMobileClosedHeight = (open: boolean) => {
+    stopMobileLifecycleTracking();
+    if (shouldDeferCloseStateClear && adjustableHeight && isMobileViewport()) {
+      scheduleDragCloseStateClear();
+      return;
+    }
+
+    clearDragCloseStateClearSchedule();
+    shouldDeferCloseStateClear = false;
+    clearMobileHeightState();
+    if (!open) {
+      scheduleClosedAdjustablePremeasure();
+    }
+  };
+
   const applyMobileOpenHeight = (open: boolean) => {
     if (!open || !isMobileViewport()) {
-      resetAdjustableTracking();
-      clearClosedPremeasureSchedule();
-      stopReactiveViewportTracking();
-      stopContentHeightTracking();
-      if (
-        shouldDeferCloseStateClear &&
-        adjustableHeight &&
-        isMobileViewport()
-      ) {
-        scheduleDragCloseStateClear();
-        return;
-      }
-
-      clearDragCloseStateClearSchedule();
-      shouldDeferCloseStateClear = false;
-      clearMobileHeightState();
-      if (!open) {
-        scheduleClosedAdjustablePremeasure();
-      }
+      applyMobileClosedHeight(open);
       return;
     }
 
@@ -991,12 +777,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const syncOpenState = (open: boolean) => {
-    if (adjustableHeight && open) {
-      root.dataset.adjustableHeight = "true";
-    } else {
-      delete root.dataset.adjustableHeight;
-    }
-
+    setRootDatasetFlag("adjustableHeight", adjustableHeight && open);
     root.dataset.state = open ? "open" : "closed";
     root.setAttribute("aria-hidden", open ? "false" : "true");
     applyMobileOpenHeight(open);
@@ -1025,12 +806,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const setDraggingVisualState = (dragging: boolean) => {
-    if (dragging) {
-      root.dataset.dragging = "true";
-      return;
-    }
-
-    delete root.dataset.dragging;
+    setRootDatasetFlag("dragging", dragging);
   };
 
   const setBackdropOpenOpacity = (opacity: number) => {
@@ -1074,19 +850,8 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     return DRAG_CLOSE_THRESHOLD_PX;
   };
 
-  const animatePanelToOpen = () => {
-    panel.style.transform = "translateY(0px)";
-    panel.addEventListener(
-      "transitionend",
-      () => {
-        panel.style.transform = "";
-      },
-      { once: true },
-    );
-  };
-
-  const animatePanelToClosed = () => {
-    panel.style.transform = "translateY(100%)";
+  const animatePanelTo = (transform: string) => {
+    panel.style.transform = transform;
     panel.addEventListener(
       "transitionend",
       () => {
@@ -1222,11 +987,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     clearSheetStackDragProgress(stackParticipantId);
 
     if (dragOffsetY >= DRAG_CLOSE_THRESHOLD_PX) {
-      animatePanelToClosed();
+      animatePanelTo("translateY(100%)");
       setOpen(false, "drag");
     } else {
       setBackdropOpenOpacity(1);
-      animatePanelToOpen();
+      animatePanelTo("translateY(0px)");
     }
 
     dragOffsetY = 0;
@@ -1243,7 +1008,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   root.addEventListener("touchcancel", handleTouchEnd, { passive: true });
   panel.addEventListener("focusin", handleFocusIn);
 
-  sheetStackParticipants.set(stackParticipantId, {
+  registerSheetStackParticipant({
     id: stackParticipantId,
     isOpen: () => options.isOpen.val,
     getOpenOrder: () => openOrder,
@@ -1261,10 +1026,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     const justOpened = currentOpen && !previousOpen;
     const justClosed = !currentOpen && previousOpen;
     if (justOpened) {
-      openOrder = nextSheetStackOpenOrder++;
+      openOrder = claimSheetStackOpenOrder();
       shouldDeferCloseStateClear = false;
-      retainStackSnapshotWhileClosed = false;
-      clearStackSnapshotRetainSchedule();
+      resetStackSnapshotRetainState();
       adjustableTrackingReady = false;
     } else if (justClosed) {
       shouldDeferCloseStateClear = adjustableHeight && isMobileViewport();
@@ -1293,13 +1057,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     open: () => setOpen(true, "api"),
     close: (reason = "api") => setOpen(false, reason),
     destroy: () => {
-      clearStackSnapshotRetainSchedule();
-      retainStackSnapshotWhileClosed = false;
-      resetAdjustableTracking();
+      resetStackSnapshotRetainState();
+      stopMobileLifecycleTracking();
       clearDragCloseStateClearSchedule();
-      clearClosedPremeasureSchedule();
-      stopReactiveViewportTracking();
-      stopContentHeightTracking();
       clearMobileHeightState();
       clearFocusedElementScrollSchedule();
       backdrop.removeEventListener("click", handleBackdropClick);
@@ -1310,7 +1070,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       root.removeEventListener("touchend", handleTouchEnd);
       root.removeEventListener("touchcancel", handleTouchEnd);
       panel.removeEventListener("focusin", handleFocusIn);
-      sheetStackParticipants.delete(stackParticipantId);
+      unregisterSheetStackParticipant(stackParticipantId);
       clearSheetStackDragProgress(stackParticipantId);
       clearStackSnapshot();
       syncSheetStackState();

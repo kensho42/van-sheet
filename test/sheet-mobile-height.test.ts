@@ -339,10 +339,10 @@ describe("createSheet mobile height snapshot", () => {
     ).toBe("300px");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     const panel = sheet.element.querySelector<HTMLElement>(".vsheet-panel");
     expect(panel?.style.bottom).toBe("300px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
@@ -362,10 +362,10 @@ describe("createSheet mobile height snapshot", () => {
     ).toBe("0px");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(panel?.style.bottom).toBe("0px");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "0px",
@@ -398,10 +398,10 @@ describe("createSheet mobile height snapshot", () => {
 
     expect(
       sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     const panel = sheet.element.querySelector<HTMLElement>(".vsheet-panel");
     expect(panel?.style.bottom).toBe("300px");
     expect(sheet.element.dataset.keyboardOpen).toBe("true");
@@ -412,10 +412,10 @@ describe("createSheet mobile height snapshot", () => {
 
     expect(
       sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(panel?.style.bottom).toBe("0px");
     expect(sheet.element.dataset.keyboardOpen).toBeUndefined();
 
@@ -451,10 +451,10 @@ describe("createSheet mobile height snapshot", () => {
     ).toBe("180px");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-content-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(
       sheet.element.style.getPropertyValue("--vsheet-sections-extra-bottom"),
-    ).toBe("0px");
+    ).toBe("");
     expect(sheet.element.style.getPropertyValue("--vsheet-root-offset-y")).toBe(
       "120px",
     );

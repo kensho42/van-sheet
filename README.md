@@ -234,8 +234,6 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 - `--vsheet-close-bg`
 - `--vsheet-mobile-height`
 - `--vsheet-keyboard-height`
-- `--vsheet-content-extra-bottom`
-- `--vsheet-sections-extra-bottom`
 - `--vsheet-root-offset-y`
 
 Example:
@@ -256,6 +254,13 @@ Example:
 - Touch drag-to-close is active on mobile viewport conditions and closes when downward drag passes the threshold.
 - When multiple sheets are open, only the topmost sheet is interactive (`Escape`, backdrop click, and drag close).
 - While dragging the top sheet, background stack layers animate in sync to preview the next layer.
+
+## Internal Architecture
+
+- `src/create-sheet.ts`: Main runtime orchestration for a single sheet instance.
+- `src/internal/stack.ts`: Cross-instance stack coordination (layering, top-sheet resolution, drag sync).
+- `src/internal/sheet-helpers.ts`: Option normalization and small DOM utility helpers.
+- `src/types.ts`: Public API contracts.
 
 ## Development
 
