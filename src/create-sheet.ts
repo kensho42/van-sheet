@@ -131,7 +131,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
   const headerElement = header({ class: "vsheet-header" }, closeButton);
 
-  let content: HTMLElement | null = null;
   const sectionsElement = div(
     { class: "vsheet-sections" },
     ...resolvedSections.map((sheetSection, index) => {
@@ -144,20 +143,19 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
         resolveContent(sheetSection.content),
       );
 
-      if (sheetSection.scroll) {
-        content = sectionElement;
-      }
-
       return sectionElement;
     }),
   );
 
-  if (!content) {
+  const scrollContent = sectionsElement.querySelector<HTMLElement>(
+    "[data-vsheet-scroll='true']",
+  );
+
+  if (!scrollContent) {
     throw new Error(
       "createSheet: unable to resolve a scroll section from `sections`.",
     );
   }
-  const scrollContent = content;
 
   const panel = section(
     {

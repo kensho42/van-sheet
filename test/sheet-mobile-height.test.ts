@@ -3,8 +3,24 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createSheet } from "../src/create-sheet";
 
 type ViewportListener = (event: Event) => void;
-type VisualViewportMock = VisualViewport & {
-  emit: (type: "resize" | "scroll") => void;
+type ViewportEvent = "resize" | "scroll";
+type VisualViewportMock = {
+  width: number;
+  height: number;
+  scale: number;
+  offsetLeft: number;
+  offsetTop: number;
+  pageLeft: number;
+  pageTop: number;
+  onresize: ((this: VisualViewport, event: Event) => void) | null;
+  onscroll: ((this: VisualViewport, event: Event) => void) | null;
+  addEventListener: (type: ViewportEvent, listener: ViewportListener) => void;
+  removeEventListener: (
+    type: ViewportEvent,
+    listener: ViewportListener,
+  ) => void;
+  dispatchEvent: (event: Event) => boolean;
+  emit: (type: ViewportEvent) => void;
 };
 
 const flush = async () => {
@@ -47,7 +63,7 @@ const setMatchMedia = (matches: boolean) => {
   });
 };
 
-const setVisualViewport = (viewport: VisualViewport | undefined) => {
+const setVisualViewport = (viewport: VisualViewportMock | undefined) => {
   Object.defineProperty(window, "visualViewport", {
     configurable: true,
     writable: true,
@@ -59,12 +75,12 @@ const createVisualViewportMock = (
   height: number,
   offsetTop = 0,
 ): VisualViewportMock => {
-  const listeners: Record<"resize" | "scroll", Set<ViewportListener>> = {
+  const listeners: Record<ViewportEvent, Set<ViewportListener>> = {
     resize: new Set(),
     scroll: new Set(),
   };
 
-  const mock = {
+  const mock: VisualViewportMock = {
     width: 0,
     height,
     scale: 1,
@@ -72,32 +88,16 @@ const createVisualViewportMock = (
     offsetTop,
     pageLeft: 0,
     pageTop: 0,
-    addEventListener: (
-      type: string,
-      listener: EventListenerOrEventListenerObject,
-    ) => {
-      if (type !== "resize" && type !== "scroll") {
-        return;
-      }
-
-      if (typeof listener === "function") {
-        listeners[type].add(listener);
-      }
+    onresize: null,
+    onscroll: null,
+    addEventListener: (type, listener) => {
+      listeners[type].add(listener);
     },
-    removeEventListener: (
-      type: string,
-      listener: EventListenerOrEventListenerObject,
-    ) => {
-      if (type !== "resize" && type !== "scroll") {
-        return;
-      }
-
-      if (typeof listener === "function") {
-        listeners[type].delete(listener);
-      }
+    removeEventListener: (type, listener) => {
+      listeners[type].delete(listener);
     },
-    dispatchEvent: () => false,
-    emit: (type: "resize" | "scroll") => {
+    dispatchEvent: (_event) => false,
+    emit: (type) => {
       const event = new Event(type);
       for (const listener of listeners[type]) {
         listener(event);
@@ -105,7 +105,7 @@ const createVisualViewportMock = (
     },
   };
 
-  return mock as VisualViewportMock;
+  return mock;
 };
 
 afterEach(() => {
