@@ -55,6 +55,7 @@
 }
 
 .vsheet-root[data-adjustable-height="true"] .vsheet-panel {
+  contain: layout;
   transition:
     var(--vsheet-panel-transform-transition),
     height 250ms cubic-bezier(0.32, 0.72, 0, 1);

@@ -162,6 +162,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let retainStackSnapshotWhileClosed = false;
   let adjustableTrackingReady = false;
   let hasDocumentBodyScrollLock = false;
+  let appliedMobilePanelHeight = Number.NaN;
+  let appliedKeyboardHeight = Number.NaN;
+  let appliedRootOffsetY = Number.NaN;
+  let appliedPanelBottomInset = Number.NaN;
+  let appliedKeyboardOpen = false;
   type TransitionFallbackSchedule = {
     timeoutId: number | null;
     transitionHandler: ((event: TransitionEvent) => void) | null;
@@ -316,6 +321,11 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     cachedNaturalPanelHeight = 0;
     naturalPanelHeightDirty = true;
     lastMeasuredScrollContentWidth = 0;
+    appliedMobilePanelHeight = Number.NaN;
+    appliedKeyboardHeight = Number.NaN;
+    appliedRootOffsetY = Number.NaN;
+    appliedPanelBottomInset = Number.NaN;
+    appliedKeyboardOpen = false;
   };
 
   const clearFocusedElementScrollSchedule = () => {
@@ -666,11 +676,29 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
         : maxPanelHeight;
     const panelBottomInset = keyboardHeight + viewportOffsetTop;
 
-    root.style.setProperty("--vsheet-mobile-height", `${panelHeight}px`);
-    root.style.setProperty("--vsheet-keyboard-height", `${keyboardHeight}px`);
-    root.style.setProperty("--vsheet-root-offset-y", `${viewportOffsetTop}px`);
-    panel.style.bottom = `${panelBottomInset}px`;
-    setRootDatasetFlag("keyboardOpen", keyboardHeight > 0);
+    if (panelHeight !== appliedMobilePanelHeight) {
+      root.style.setProperty("--vsheet-mobile-height", `${panelHeight}px`);
+      appliedMobilePanelHeight = panelHeight;
+    }
+    if (keyboardHeight !== appliedKeyboardHeight) {
+      root.style.setProperty("--vsheet-keyboard-height", `${keyboardHeight}px`);
+      appliedKeyboardHeight = keyboardHeight;
+    }
+    if (viewportOffsetTop !== appliedRootOffsetY) {
+      root.style.setProperty(
+        "--vsheet-root-offset-y",
+        `${viewportOffsetTop}px`,
+      );
+      appliedRootOffsetY = viewportOffsetTop;
+    }
+    if (panelBottomInset !== appliedPanelBottomInset) {
+      panel.style.bottom = `${panelBottomInset}px`;
+      appliedPanelBottomInset = panelBottomInset;
+    }
+    if (keyboardHeight > 0 !== appliedKeyboardOpen) {
+      setRootDatasetFlag("keyboardOpen", keyboardHeight > 0);
+      appliedKeyboardOpen = keyboardHeight > 0;
+    }
     if (keyboardHeight > 0) {
       scheduleFocusedElementIntoView();
     }
