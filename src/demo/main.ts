@@ -17,7 +17,9 @@ type DemoLayout =
   | "adjustable-height"
   | "floating-media"
   | "drag-start-guard";
+type DemoTheme = "system" | "light" | "dark";
 const latestOptionResult = van.state("No option submitted yet.");
+const demoTheme = van.state<DemoTheme>("system");
 
 type DemoSectionActions = {
   closeSheet: () => void;
@@ -459,6 +461,28 @@ const openOptionSelectorDemo = async () => {
       : `Submitted value: ${result.toUpperCase()}`;
 };
 
+const getSystemTheme = (): "light" | "dark" =>
+  window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+const applyDemoTheme = () => {
+  const root = document.documentElement;
+  if (demoTheme.val === "system") {
+    delete root.dataset.theme;
+    return;
+  }
+
+  root.dataset.theme = demoTheme.val;
+};
+
+const cycleDemoTheme = () => {
+  demoTheme.val =
+    demoTheme.val === "system"
+      ? "light"
+      : demoTheme.val === "light"
+        ? "dark"
+        : "system";
+};
+
 const stackBuilderSections = (
   level: number,
   openAnotherSheet: () => void,
@@ -548,7 +572,33 @@ const openStackBuilderDemo = (
 const app = div(
   { class: "demo" },
   h1("van-sheet demo"),
-  p("Test both mobile (bottom) and desktop (right) interaction patterns."),
+  div(
+    { class: "demo-toolbar" },
+    p("Test both mobile (bottom) and desktop (right) interaction patterns."),
+    div(
+      { class: "demo-toolbar-controls" },
+      p(
+        () =>
+          `Theme: ${
+            demoTheme.val === "system"
+              ? `system (${getSystemTheme()})`
+              : demoTheme.val
+          }`,
+      ),
+      button(
+        {
+          type: "button",
+          onclick: cycleDemoTheme,
+        },
+        () =>
+          demoTheme.val === "system"
+            ? "Use Light"
+            : demoTheme.val === "light"
+              ? "Use Dark"
+              : "Use System",
+      ),
+    ),
+  ),
   div(
     { class: "demo-grid" },
     div(
@@ -671,5 +721,7 @@ const app = div(
 
 const root = document.querySelector<HTMLElement>("#app");
 if (root) {
+  applyDemoTheme();
+  van.derive(applyDemoTheme);
   van.add(root, app);
 }
