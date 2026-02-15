@@ -12,6 +12,7 @@
 - Mobile keyboard-aware viewport handling.
 - Optional content-fit mobile height (`adjustableHeight`) capped to 95% viewport.
 - Optional floating close button overlay (`floatingCloseButton`).
+- Honors `prefers-reduced-motion` by minimizing transitions.
 - Custom close icon support.
 - CSS variables for theme and layout control.
 

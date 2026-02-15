@@ -157,3 +157,19 @@
     max-height: 100dvh;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .vsheet-root {
+    --vsheet-panel-transform-transition: transform 1ms linear;
+  }
+
+  .vsheet-backdrop {
+    transition: opacity 1ms linear;
+  }
+
+  .vsheet-root[data-adjustable-height="true"] .vsheet-panel {
+    transition:
+      var(--vsheet-panel-transform-transition),
+      height 1ms linear;
+  }
+}
