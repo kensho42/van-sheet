@@ -357,13 +357,10 @@ body {
   min-height: 0;
 }
 
-.demo-adjustable-controls {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.demo-adjustable-controls p {
-  margin: 0;
+.demo-adjustable-footer {
+  padding: 12px 16px 0;
+  border-top: 1px solid var(--demo-section-border);
+  background: var(--demo-section-bg);
 }
 
 .demo-adjustable-buttons {

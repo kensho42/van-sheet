@@ -143,8 +143,8 @@ const keyboardProbeSections = (): SheetSection[] => [
 ];
 
 const adjustableHeightSections = (): SheetSection[] => {
-  const itemCount = van.state(1);
-  const minItems = 1;
+  const itemCount = van.state(0);
+  const minItems = 0;
   const maxItems = 18;
   const dynamicRows = div();
 
@@ -176,8 +176,7 @@ const adjustableHeightSections = (): SheetSection[] => {
       className: "demo-adjustable-top",
       content: div(
         strong("Adjustable Height Demo"),
-        p("Tap +/- to change content and watch the sheet resize smoothly."),
-        p("The mobile sheet still caps at 95% height, then scroll takes over."),
+        p(() => `${itemCount.val} row${itemCount.val === 1 ? "" : "s"}`),
       ),
     },
     {
@@ -185,34 +184,29 @@ const adjustableHeightSections = (): SheetSection[] => {
       scroll: true,
       content: div(
         { class: "demo-sheet-scroll demo-adjustable-scroll" },
-        div(
-          { class: "row demo-adjustable-controls" },
-          strong("Rows"),
-          p(
-            () =>
-              `${itemCount.val} dynamic item${itemCount.val === 1 ? "" : "s"}`,
-          ),
-          div(
-            { class: "demo-adjustable-buttons" },
-            button(
-              {
-                type: "button",
-                class: "secondary",
-                onclick: removeItem,
-              },
-              "-",
-            ),
-            button(
-              {
-                type: "button",
-                class: "accent",
-                onclick: addItem,
-              },
-              "+",
-            ),
-          ),
-        ),
         dynamicRows,
+      ),
+    },
+    {
+      className: "demo-adjustable-footer",
+      content: div(
+        { class: "demo-adjustable-buttons" },
+        button(
+          {
+            type: "button",
+            class: "secondary",
+            onclick: removeItem,
+          },
+          "-",
+        ),
+        button(
+          {
+            type: "button",
+            class: "accent",
+            onclick: addItem,
+          },
+          "+",
+        ),
       ),
     },
   ];
