@@ -28,6 +28,8 @@ import type { SheetInstance, SheetOptions, SheetReason } from "./types";
 const { button, div, header, section } = van.tags;
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
 const DRAG_CLOSE_THRESHOLD_PX = 150;
+const DRAG_CLOSE_DELTA_WEIGHT = 0.9;
+const DRAG_CLOSE_DELTA_BOOST_CAP_PX = 60;
 const MOBILE_SHEET_HEIGHT_RATIO = 0.95;
 const KEYBOARD_CLOSED_EPSILON_PX = 1;
 const PANEL_TRANSITION_FALLBACK_MS = 550;
@@ -137,6 +139,8 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let dragStartY = 0;
   let dragOffsetY = 0;
   let dragPanelHeight = 0;
+  let lastDragTouchY = 0;
+  let dragReleaseDeltaBoostY = 0;
   let isTouchTracking = false;
   let isDragging = false;
   let isHorizontalGestureBlocked = false;
@@ -1004,7 +1008,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     activeDragTouchId = touch.identifier;
     dragStartX = touch.clientX;
     dragStartY = touch.clientY;
+    lastDragTouchY = touch.clientY;
     dragOffsetY = 0;
+    dragReleaseDeltaBoostY = 0;
     dragPanelHeight = panel.getBoundingClientRect().height;
     isHorizontalGestureBlocked = false;
     isDragging = false;
@@ -1070,6 +1076,8 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     const deltaX = touch.clientX - dragStartX;
     const deltaY = touch.clientY - dragStartY;
+    const moveDeltaY = touch.clientY - lastDragTouchY;
+    lastDragTouchY = touch.clientY;
     if (dragStartBlockTarget && !isHorizontalGestureBlocked) {
       const absDeltaX = Math.abs(deltaX);
       const absDeltaY = Math.abs(deltaY);
@@ -1105,6 +1113,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     }
 
     dragOffsetY = deltaY;
+    if (moveDeltaY > 0) {
+      dragReleaseDeltaBoostY = Math.max(dragReleaseDeltaBoostY, moveDeltaY);
+    }
     applyDragOffset(deltaY);
     applyDragBackdropOpacity(deltaY);
     setSheetStackDragProgress(
@@ -1132,6 +1143,8 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       dragStartX = 0;
       dragStartY = 0;
       dragPanelHeight = 0;
+      lastDragTouchY = 0;
+      dragReleaseDeltaBoostY = 0;
       isHorizontalGestureBlocked = false;
       dragStartBlockTarget = null;
       clearSheetStackDragProgress(stackParticipantId);
@@ -1142,7 +1155,14 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     setDraggingVisualState(false);
     clearSheetStackDragProgress(stackParticipantId);
 
-    if (dragOffsetY >= DRAG_CLOSE_THRESHOLD_PX) {
+    const dragCloseDistance =
+      dragOffsetY +
+      Math.min(
+        DRAG_CLOSE_DELTA_BOOST_CAP_PX,
+        dragReleaseDeltaBoostY * DRAG_CLOSE_DELTA_WEIGHT,
+      );
+
+    if (dragCloseDistance >= DRAG_CLOSE_THRESHOLD_PX) {
       animatePanelTo("translateY(100%)");
       setOpen(false, "drag");
     } else {
@@ -1154,6 +1174,8 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     dragStartX = 0;
     dragStartY = 0;
     dragPanelHeight = 0;
+    lastDragTouchY = 0;
+    dragReleaseDeltaBoostY = 0;
     isHorizontalGestureBlocked = false;
     dragStartBlockTarget = null;
   };
