@@ -158,6 +158,24 @@
   }
 }
 
+@media (min-width: 768px) {
+  .vsheet-panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    width: min(430px, 100vw);
+    border-radius: 20px 0 0 20px;
+    transform: translateX(100%);
+    transform-origin: left center;
+  }
+
+  .vsheet-root[data-state="open"] .vsheet-panel {
+    transform: translateX(var(--vsheet-stack-offset-y, 0px))
+      scale(var(--vsheet-stack-scale, 1));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vsheet-root {
     --vsheet-panel-transform-transition: transform 1ms linear;

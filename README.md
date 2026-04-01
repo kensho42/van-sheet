@@ -274,6 +274,10 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 - Close icon stays overlaid and clickable above content.
 - No top inset is reserved automatically; content can render directly underneath.
 
+### Desktop drawer layout
+
+`van-sheet` automatically switches the panel to a right-side drawer on desktop-sized viewports (`min-width: 768px`) while keeping the same `isOpen` state, dismissals, and stacking behavior.
+
 ## Styling and Theming
 
 `van-sheet` supports the following CSS variables:
