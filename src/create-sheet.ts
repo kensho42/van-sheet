@@ -48,6 +48,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const showCloseButton = options.showCloseButton ?? true;
   const adjustableHeight = options.adjustableHeight ?? false;
   const floatingCloseButton = options.floatingCloseButton ?? false;
+  const destroyOnClose = options.destroyOnClose ?? false;
   const resolvedDragStartBlockSelector = [
     DEFAULT_DRAG_START_BLOCK_SELECTOR,
     options.dragStartBlockSelector?.trim() ?? "",
@@ -166,6 +167,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let retainStackSnapshotWhileClosed = false;
   let adjustableTrackingReady = false;
   let hasDocumentBodyScrollLock = false;
+  let isDestroyed = false;
   let appliedMobilePanelHeight = Number.NaN;
   let appliedKeyboardHeight = Number.NaN;
   let appliedRootOffsetY = Number.NaN;
@@ -176,6 +178,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     transitionHandler: ((event: TransitionEvent) => void) | null;
   };
   const stackSnapshotRetainSchedule: TransitionFallbackSchedule = {
+    timeoutId: null,
+    transitionHandler: null,
+  };
+  const destroyOnCloseSchedule: TransitionFallbackSchedule = {
     timeoutId: null,
     transitionHandler: null,
   };
@@ -233,6 +239,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     clearTransitionFallbackSchedule(stackSnapshotRetainSchedule);
   };
 
+  const clearDestroyOnCloseSchedule = () => {
+    clearTransitionFallbackSchedule(destroyOnCloseSchedule);
+  };
+
   const resetStackSnapshotRetainState = () => {
     retainStackSnapshotWhileClosed = false;
     clearStackSnapshotRetainSchedule();
@@ -268,6 +278,62 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     };
 
     scheduleTransitionFallback(stackSnapshotRetainSchedule, maybeFinalize);
+  };
+
+  const destroySheet = () => {
+    if (isDestroyed) {
+      return;
+    }
+
+    isDestroyed = true;
+    clearDestroyOnCloseSchedule();
+    resetStackSnapshotRetainState();
+    stopMobileLifecycleTracking();
+    clearDragCloseStateClearSchedule();
+    clearMobileHeightState();
+    clearFocusedElementScrollSchedule();
+    syncDocumentBodyScrollLock(false);
+    backdrop.removeEventListener("click", handleBackdropClick);
+    closeButton.removeEventListener("click", handleCloseButtonClick);
+    document.removeEventListener("keydown", handleEscape);
+    root.removeEventListener("touchstart", handleTouchStart);
+    root.removeEventListener("touchmove", handleTouchMove);
+    root.removeEventListener("touchend", handleTouchEnd);
+    root.removeEventListener("touchcancel", handleTouchEnd);
+    panel.removeEventListener("focusin", handleFocusIn);
+    unregisterSheetStackParticipant(stackParticipantId);
+    clearSheetStackDragProgress(stackParticipantId);
+    clearStackSnapshot();
+    syncSheetStackState();
+    root.remove();
+  };
+
+  const scheduleDestroyOnClose = () => {
+    if (!destroyOnClose || options.isOpen.val || isDestroyed) {
+      return;
+    }
+
+    const maybeDestroy = (event?: TransitionEvent) => {
+      if (event && event.target !== panel) {
+        return;
+      }
+
+      if (event && event.propertyName !== "transform") {
+        return;
+      }
+
+      if (options.isOpen.val) {
+        return;
+      }
+
+      destroySheet();
+    };
+
+    scheduleTransitionFallback(
+      destroyOnCloseSchedule,
+      maybeDestroy,
+      (event) => event.target === panel && event.propertyName === "transform",
+    );
   };
 
   const applyStackSnapshot = (snapshot: SheetStackSnapshot | null) => {
@@ -859,6 +925,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     if (open) {
       setBackdropOpenOpacity(1);
       panel.style.transform = "";
+      clearDestroyOnCloseSchedule();
       return;
     }
 
@@ -1211,6 +1278,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
       shouldDeferCloseStateClear = false;
       resetStackSnapshotRetainState();
       adjustableTrackingReady = false;
+      clearDestroyOnCloseSchedule();
     } else if (justClosed) {
       shouldDeferCloseStateClear = adjustableHeight && isMobileViewport();
       retainStackSnapshotWhileClosed = true;
@@ -1220,6 +1288,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     syncOpenState(currentOpen);
     if (justOpened && adjustableHeight && isMobileViewport()) {
       scheduleAdjustableTrackingStart();
+    }
+    if (justClosed) {
+      scheduleDestroyOnClose();
     }
     syncSheetStackState();
 
@@ -1237,26 +1308,6 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     element: root,
     open: () => setOpen(true, "api"),
     close: (reason = "api") => setOpen(false, reason),
-    destroy: () => {
-      resetStackSnapshotRetainState();
-      stopMobileLifecycleTracking();
-      clearDragCloseStateClearSchedule();
-      clearMobileHeightState();
-      clearFocusedElementScrollSchedule();
-      syncDocumentBodyScrollLock(false);
-      backdrop.removeEventListener("click", handleBackdropClick);
-      closeButton.removeEventListener("click", handleCloseButtonClick);
-      document.removeEventListener("keydown", handleEscape);
-      root.removeEventListener("touchstart", handleTouchStart);
-      root.removeEventListener("touchmove", handleTouchMove);
-      root.removeEventListener("touchend", handleTouchEnd);
-      root.removeEventListener("touchcancel", handleTouchEnd);
-      panel.removeEventListener("focusin", handleFocusIn);
-      unregisterSheetStackParticipant(stackParticipantId);
-      clearSheetStackDragProgress(stackParticipantId);
-      clearStackSnapshot();
-      syncSheetStackState();
-      root.remove();
-    },
+    destroy: destroySheet,
   };
 };

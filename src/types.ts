@@ -27,6 +27,7 @@ export interface SheetOptions {
   dragStartBlockSelector?: string;
   adjustableHeight?: boolean;
   floatingCloseButton?: boolean;
+  destroyOnClose?: boolean;
   closeIcon?: HTMLElement | (() => HTMLElement);
   mountTo?: HTMLElement | string;
   dismissible?: boolean;

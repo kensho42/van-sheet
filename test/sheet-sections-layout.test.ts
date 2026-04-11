@@ -133,4 +133,36 @@ describe("createSheet sections layout", () => {
 
     sheet.destroy();
   });
+
+  it("destroys the sheet after close when destroyOnClose is enabled", async () => {
+    const isOpen = van.state(true);
+    const sheet = createSheet({
+      isOpen,
+      destroyOnClose: true,
+      sections: [
+        { content: "top" },
+        { content: "middle", scroll: true },
+        { content: "bottom" },
+      ],
+    });
+
+    await flush();
+
+    expect(sheet.element.isConnected).toBe(true);
+
+    isOpen.val = false;
+    await flush();
+
+    expect(sheet.element.isConnected).toBe(true);
+
+    const panel = sheet.element.querySelector<HTMLElement>(".vsheet-panel");
+    const transitionEnd = new Event("transitionend");
+    Object.defineProperty(transitionEnd, "propertyName", {
+      value: "transform",
+    });
+    panel?.dispatchEvent(transitionEnd);
+    await flush();
+
+    expect(sheet.element.isConnected).toBe(false);
+  });
 });

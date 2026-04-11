@@ -224,6 +224,7 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 | `dragStartBlockSelector` | `string` | `undefined` | Additional selector for zones that should block sheet drag after a horizontal gesture begins. Additive with `[data-vsheet-drag-block]`. |
 | `adjustableHeight` | `boolean` | `false` | Mobile-only. Fits to content height up to the 95% mobile cap. |
 | `floatingCloseButton` | `boolean` | `false` | Overlays the close button above content while allowing content to start at panel top. |
+| `destroyOnClose` | `boolean` | `false` | Destroys the sheet after it finishes closing and removes it from the DOM. |
 | `closeIcon` | `HTMLElement \| (() => HTMLElement)` | built-in icon | Custom close icon element/factory. |
 | `mountTo` | `HTMLElement \| string` | `document.body` | Selector fallback is `document.body` if no match. |
 | `dismissible` | `boolean` | `true` | Prevent non-API closing when `false`. |
