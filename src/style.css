@@ -87,7 +87,7 @@
 
 .vsheet-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding: 12px;
 }
 
@@ -142,6 +142,10 @@
 }
 
 @media (max-width: 767px) {
+  .vsheet-header {
+    justify-content: flex-end;
+  }
+
   .vsheet-panel {
     height: var(--vsheet-mobile-height, 95dvh);
   }
