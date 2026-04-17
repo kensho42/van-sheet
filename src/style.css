@@ -91,6 +91,17 @@
   padding: 12px;
 }
 
+.vsheet-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--vsheet-close-bg, #f5f5f5);
+  cursor: pointer;
+}
+
 .vsheet-root[data-floating-close-button="true"] .vsheet-header {
   position: absolute;
   top: 0;
@@ -114,17 +125,6 @@
 .vsheet-section {
   flex: 0 0 auto;
   min-height: 0;
-}
-
-.vsheet-close {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  border: 0;
-  background: var(--vsheet-close-bg, #f5f5f5);
-  cursor: pointer;
 }
 
 .vsheet-close svg {
