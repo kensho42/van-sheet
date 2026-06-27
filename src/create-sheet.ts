@@ -49,6 +49,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   const adjustableHeight = options.adjustableHeight ?? false;
   const floatingCloseButton = options.floatingCloseButton ?? false;
   const destroyOnClose = options.destroyOnClose ?? false;
+  const enableBodyLocking = options.enableBodyLocking ?? true;
   const resolvedDragStartBlockSelector = [
     DEFAULT_DRAG_START_BLOCK_SELECTOR,
     options.dragStartBlockSelector?.trim() ?? "",
@@ -899,6 +900,14 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   };
 
   const syncDocumentBodyScrollLock = (open: boolean) => {
+    if (!enableBodyLocking) {
+      if (hasDocumentBodyScrollLock) {
+        unlockDocumentBodyScroll();
+        hasDocumentBodyScrollLock = false;
+      }
+      return;
+    }
+
     if (open) {
       if (!hasDocumentBodyScrollLock) {
         hasDocumentBodyScrollLock = lockDocumentBodyScroll();

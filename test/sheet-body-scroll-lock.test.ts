@@ -7,11 +7,18 @@ const flush = async () => {
 };
 
 const mountedSheets: ReturnType<typeof createSheet>[] = [];
+type MountSheetOptions = Partial<
+  Omit<Parameters<typeof createSheet>[0], "isOpen" | "content" | "sections">
+>;
 
-const mountSheet = (isOpen: ReturnType<typeof van.state<boolean>>) => {
+const mountSheet = (
+  isOpen: ReturnType<typeof van.state<boolean>>,
+  options: MountSheetOptions = {},
+) => {
   const sheet = createSheet({
     isOpen,
     content: "content",
+    ...options,
   });
   mountedSheets.push(sheet);
   return sheet;
@@ -107,6 +114,28 @@ describe("createSheet document body scroll lock", () => {
     expect(document.documentElement.style.overflow).toBe("");
     expect(document.body.style.overflow).toBe("");
     expect(document.body.style.position).toBe("");
+  });
+
+  it("does not lock document body scroll when body locking is disabled", async () => {
+    document.documentElement.style.overflow = "clip";
+    document.body.style.overflow = "auto";
+    document.body.style.position = "relative";
+
+    const isOpen = van.state(true);
+    mountSheet(isOpen, { enableBodyLocking: false });
+
+    await flush();
+
+    expect(document.documentElement.style.overflow).toBe("clip");
+    expect(document.body.style.overflow).toBe("auto");
+    expect(document.body.style.position).toBe("relative");
+
+    isOpen.val = false;
+    await flush();
+
+    expect(document.documentElement.style.overflow).toBe("clip");
+    expect(document.body.style.overflow).toBe("auto");
+    expect(document.body.style.position).toBe("relative");
   });
 
   it("prevents vertical touchmove on backdrop to avoid document drag/refresh", async () => {

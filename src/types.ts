@@ -28,6 +28,7 @@ export interface SheetOptions {
   adjustableHeight?: boolean;
   floatingCloseButton?: boolean;
   destroyOnClose?: boolean;
+  enableBodyLocking?: boolean;
   closeIcon?: HTMLElement | (() => HTMLElement);
   mountTo?: HTMLElement | string;
   dismissible?: boolean;
