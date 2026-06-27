@@ -60,9 +60,13 @@ describe("createSheet close icon behavior", () => {
 
     const paths = sheet.element.querySelectorAll(".vsheet-close svg path");
     expect(paths).toHaveLength(2);
-    expect(paths[0].getAttribute("stroke")).toBe("#999999");
+    expect(paths[0].classList.contains("vsheet-close-icon-line")).toBe(true);
+    expect(paths[0].getAttribute("stroke")).toBe("currentColor");
     expect(paths[0].getAttribute("stroke-width")).toBe("3");
-    expect(paths[1].getAttribute("stroke")).toBe("#999999");
+    expect(
+      paths[1].classList.contains("vsheet-close-icon-line--secondary"),
+    ).toBe(true);
+    expect(paths[1].getAttribute("stroke")).toBe("currentColor");
     expect(paths[1].getAttribute("stroke-width")).toBe("3");
 
     sheet.destroy();
