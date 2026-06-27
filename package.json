@@ -1,6 +1,6 @@
 {
   "name": "van-sheet",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Reusable sheet component for VanJS",
   "license": "MIT",
   "type": "module",
