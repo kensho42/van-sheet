@@ -267,7 +267,7 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 - Enable with `adjustableHeight: true`.
 - Applies only in mobile viewport mode (`(max-width: 767px)`).
 - Sheet height follows content and animates height changes while open.
-- Max height remains capped at the existing 95% mobile limit (keyboard adjustments still apply).
+- Max height remains capped at the existing 95% mobile limit, while also reserving the top safe area and applying keyboard adjustments.
 - When content exceeds the cap, overflow remains in the scroll section.
 
 ### Floating close button
@@ -293,6 +293,7 @@ Creates and mounts a sheet to `document.body` (or `mountTo` when provided).
 - `--vsheet-mobile-height`
 - `--vsheet-keyboard-height`
 - `--vsheet-root-offset-y`
+- `--vsheet-top-safe-area`
 
 Example:
 

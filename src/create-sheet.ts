@@ -155,6 +155,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let scheduledMobileHeightUpdateRaf: number | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let mutationObserver: MutationObserver | null = null;
+  let topSafeAreaProbe: HTMLElement | null = null;
   let hasLoadTracking = false;
   let cachedNaturalPanelHeight = 0;
   let naturalPanelHeightDirty = true;
@@ -173,6 +174,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
   let appliedKeyboardHeight = Number.NaN;
   let appliedRootOffsetY = Number.NaN;
   let appliedPanelBottomInset = Number.NaN;
+  let appliedTopSafeAreaInset = Number.NaN;
   let appliedKeyboardOpen = false;
   type TransitionFallbackSchedule = {
     timeoutId: number | null;
@@ -387,7 +389,9 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     root.style.removeProperty("--vsheet-mobile-height");
     root.style.removeProperty("--vsheet-keyboard-height");
     root.style.removeProperty("--vsheet-root-offset-y");
+    root.style.removeProperty("--vsheet-top-safe-area");
     panel.style.removeProperty("bottom");
+    clearTopSafeAreaProbe();
     setRootDatasetFlag("keyboardOpen", false);
     cachedNaturalPanelHeight = 0;
     naturalPanelHeightDirty = true;
@@ -396,6 +400,7 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     appliedKeyboardHeight = Number.NaN;
     appliedRootOffsetY = Number.NaN;
     appliedPanelBottomInset = Number.NaN;
+    appliedTopSafeAreaInset = Number.NaN;
     appliedKeyboardOpen = false;
   };
 
@@ -640,6 +645,47 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
     return keyboardHeight <= KEYBOARD_CLOSED_EPSILON_PX ? 0 : keyboardHeight;
   };
 
+  const clearTopSafeAreaProbe = () => {
+    topSafeAreaProbe?.remove();
+    topSafeAreaProbe = null;
+  };
+
+  const getTopSafeAreaInset = () => {
+    if (typeof window.getComputedStyle !== "function") {
+      return 0;
+    }
+
+    const ownerDocument = root.ownerDocument;
+    if (!ownerDocument.body) {
+      return 0;
+    }
+
+    if (!topSafeAreaProbe) {
+      topSafeAreaProbe = ownerDocument.createElement("div");
+      topSafeAreaProbe.dataset.vsheetSafeAreaProbe = "top";
+      topSafeAreaProbe.setAttribute("aria-hidden", "true");
+      topSafeAreaProbe.style.position = "fixed";
+      topSafeAreaProbe.style.top = "0";
+      topSafeAreaProbe.style.left = "0";
+      topSafeAreaProbe.style.width = "0";
+      topSafeAreaProbe.style.height = "0";
+      topSafeAreaProbe.style.paddingTop = "env(safe-area-inset-top, 0px)";
+      topSafeAreaProbe.style.overflow = "hidden";
+      topSafeAreaProbe.style.visibility = "hidden";
+      topSafeAreaProbe.style.pointerEvents = "none";
+      ownerDocument.body.append(topSafeAreaProbe);
+    }
+
+    const computedInset = Number.parseFloat(
+      window.getComputedStyle(topSafeAreaProbe).paddingTop,
+    );
+    if (!Number.isFinite(computedInset)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.round(computedInset));
+  };
+
   const getViewportOffsetTop = () => {
     const viewport = window.visualViewport;
     if (!viewport) {
@@ -736,11 +782,17 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
 
     const currentLayoutHeight = getLayoutViewportHeight();
     const keyboardHeight = getDetectedKeyboardHeight();
+    const topSafeAreaInset = getTopSafeAreaInset();
     const viewportOffsetTop = keyboardHeight > 0 ? getViewportOffsetTop() : 0;
     const basePanelHeight = Math.round(
       currentLayoutHeight * MOBILE_SHEET_HEIGHT_RATIO,
     );
-    const maxPanelHeight = Math.max(0, basePanelHeight - keyboardHeight);
+    const ratioPanelHeight = Math.max(0, basePanelHeight - keyboardHeight);
+    const safeAreaPanelHeight = Math.max(
+      0,
+      currentLayoutHeight - keyboardHeight - topSafeAreaInset,
+    );
+    const maxPanelHeight = Math.min(ratioPanelHeight, safeAreaPanelHeight);
     const panelHeight =
       adjustableHeight && adjustableTrackingReady
         ? Math.min(maxPanelHeight, getNaturalPanelHeight())
@@ -761,6 +813,10 @@ export const createSheet = (options: SheetOptions): SheetInstance => {
         `${viewportOffsetTop}px`,
       );
       appliedRootOffsetY = viewportOffsetTop;
+    }
+    if (topSafeAreaInset !== appliedTopSafeAreaInset) {
+      root.style.setProperty("--vsheet-top-safe-area", `${topSafeAreaInset}px`);
+      appliedTopSafeAreaInset = topSafeAreaInset;
     }
     if (panelBottomInset !== appliedPanelBottomInset) {
       panel.style.bottom = `${panelBottomInset}px`;

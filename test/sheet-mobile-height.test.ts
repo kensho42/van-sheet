@@ -52,6 +52,7 @@ const originalVisualViewport = Object.getOwnPropertyDescriptor(
   window,
   "visualViewport",
 );
+const originalGetComputedStyle = window.getComputedStyle;
 const originalOffsetHeight = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
   "offsetHeight",
@@ -141,6 +142,29 @@ const createVisualViewportMock = (
   };
 
   return mock;
+};
+
+const mockTopSafeAreaInset = (inset: number) => {
+  vi.spyOn(window, "getComputedStyle").mockImplementation(
+    (element, pseudoElement) => {
+      const computed = originalGetComputedStyle.call(
+        window,
+        element,
+        pseudoElement,
+      );
+      if (
+        element instanceof HTMLElement &&
+        element.dataset.vsheetSafeAreaProbe === "top"
+      ) {
+        Object.defineProperty(computed, "paddingTop", {
+          configurable: true,
+          value: `${inset}px`,
+        });
+      }
+
+      return computed;
+    },
+  );
 };
 
 const installLayoutMetricsMock = (metrics: LayoutMetrics) => {
@@ -393,6 +417,44 @@ describe("createSheet mobile height snapshot", () => {
     expect(sheet.element.dataset.keyboardOpen).toBeUndefined();
 
     sheet.destroy();
+  });
+
+  it("caps mobile sheet height below the top safe area", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    mockTopSafeAreaInset(80);
+    const visualViewport = createVisualViewportMock(1000, 0);
+    setVisualViewport(visualViewport);
+
+    const sheet = createSheet({
+      isOpen: van.state(true),
+      content: "content",
+    });
+
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "920px",
+    );
+    expect(sheet.element.style.getPropertyValue("--vsheet-top-safe-area")).toBe(
+      "80px",
+    );
+
+    visualViewport.height = 700;
+    visualViewport.emit("resize");
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "620px",
+    );
+    expect(
+      sheet.element.style.getPropertyValue("--vsheet-keyboard-height"),
+    ).toBe("300px");
+
+    sheet.destroy();
+    expect(
+      document.querySelector("[data-vsheet-safe-area-probe='top']"),
+    ).toBeNull();
   });
 
   it("lifts panel above keyboard without adding extra fixed-section inset", async () => {
