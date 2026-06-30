@@ -29,6 +29,19 @@ const dispatchTouchEvent = (
   target.dispatchEvent(event);
 };
 
+const dispatchPrimaryPointerDown = (target: EventTarget) => {
+  const event = new Event("pointerdown", {
+    bubbles: true,
+    cancelable: true,
+  }) as PointerEvent;
+  Object.defineProperty(event, "button", {
+    configurable: true,
+    value: 0,
+  });
+  target.dispatchEvent(event);
+  return event;
+};
+
 describe("createSheet close icon behavior", () => {
   it("renders built-in SVG icon when closeIcon is not provided", async () => {
     const sheet = createSheet({
@@ -171,6 +184,56 @@ describe("createSheet close icon behavior", () => {
     await flush();
 
     expect(reasons).toEqual(["close-button", "backdrop", "escape"]);
+
+    sheet.destroy();
+  });
+
+  it("keeps pointerdown from dismissing before click activation", async () => {
+    const reasons: SheetReason[] = [];
+    const state = van.state(true);
+    const sheet = createSheet({
+      isOpen: state,
+      content: "content",
+      onOpenChange: (open, reason) => {
+        if (!open) {
+          reasons.push(reason);
+        }
+      },
+    });
+
+    await flush();
+
+    const closeButton =
+      sheet.element.querySelector<HTMLButtonElement>(".vsheet-close");
+    expect(closeButton).not.toBeNull();
+    dispatchPrimaryPointerDown(closeButton as HTMLButtonElement);
+    await flush();
+
+    expect(state.val).toBe(true);
+    expect(reasons).toEqual([]);
+
+    closeButton?.click();
+    await flush();
+
+    expect(state.val).toBe(false);
+    expect(reasons).toEqual(["close-button"]);
+
+    state.val = true;
+    await flush();
+    const backdrop =
+      sheet.element.querySelector<HTMLButtonElement>(".vsheet-backdrop");
+    expect(backdrop).not.toBeNull();
+    dispatchPrimaryPointerDown(backdrop as HTMLButtonElement);
+    await flush();
+
+    expect(state.val).toBe(true);
+    expect(reasons).toEqual(["close-button"]);
+
+    backdrop?.click();
+    await flush();
+
+    expect(state.val).toBe(false);
+    expect(reasons).toEqual(["close-button", "backdrop"]);
 
     sheet.destroy();
   });

@@ -814,4 +814,114 @@ describe("createSheet adjustable mobile height", () => {
 
     sheet.destroy();
   });
+
+  it("keeps adjustable content height stable while close animation is running", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    globalWithResizeObserver.ResizeObserver = undefined;
+
+    const metrics: LayoutMetrics = {
+      headerHeight: 80,
+      sectionsOffsetHeight: 420,
+      scrollOffsetHeight: 280,
+      scrollScrollHeight: 260,
+    };
+    installLayoutMetricsMock(metrics);
+
+    const isOpen = van.state(true);
+    const sheet = createSheet({
+      isOpen,
+      content: "content",
+      adjustableHeight: true,
+    });
+
+    await flush();
+    dispatchPanelTransformTransitionEnd(sheet.element);
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+    expect(sheet.element.dataset.adjustableHeight).toBe("true");
+    expect(sheet.element.dataset.adjustableTracking).toBe("true");
+
+    vi.useFakeTimers();
+    isOpen.val = false;
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+    expect(sheet.element.dataset.adjustableHeight).toBe("true");
+    expect(sheet.element.dataset.adjustableTracking).toBe("true");
+
+    vi.advanceTimersByTime(600);
+    await flush();
+    vi.useRealTimers();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "",
+    );
+    expect(sheet.element.dataset.adjustableHeight).toBeUndefined();
+    expect(sheet.element.dataset.adjustableTracking).toBeUndefined();
+
+    sheet.destroy();
+  });
+
+  it("ignores descendant transitions while waiting to clear close height state", async () => {
+    setInnerHeight(1000);
+    setMatchMedia(true);
+    globalWithResizeObserver.ResizeObserver = undefined;
+
+    const metrics: LayoutMetrics = {
+      headerHeight: 80,
+      sectionsOffsetHeight: 420,
+      scrollOffsetHeight: 280,
+      scrollScrollHeight: 260,
+    };
+    installLayoutMetricsMock(metrics);
+
+    const innerButton = document.createElement("button");
+    innerButton.textContent = "Close";
+
+    const isOpen = van.state(true);
+    const sheet = createSheet({
+      isOpen,
+      content: innerButton,
+      adjustableHeight: true,
+    });
+
+    await flush();
+    dispatchPanelTransformTransitionEnd(sheet.element);
+    await flush();
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+
+    vi.useFakeTimers();
+    isOpen.val = false;
+    await flush();
+
+    const childTransitionEnd = new Event("transitionend", { bubbles: true });
+    Object.defineProperty(childTransitionEnd, "propertyName", {
+      value: "transform",
+    });
+    innerButton.dispatchEvent(childTransitionEnd);
+    await flush();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "480px",
+    );
+    expect(sheet.element.dataset.adjustableHeight).toBe("true");
+    expect(sheet.element.dataset.adjustableTracking).toBe("true");
+
+    dispatchPanelTransformTransitionEnd(sheet.element);
+    await flush();
+    vi.useRealTimers();
+
+    expect(sheet.element.style.getPropertyValue("--vsheet-mobile-height")).toBe(
+      "",
+    );
+
+    sheet.destroy();
+  });
 });
